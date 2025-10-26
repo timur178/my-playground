@@ -56,7 +56,7 @@ resource "aws_db_instance" "pg" {
   vpc_security_group_ids      = [aws_security_group.pg.id]
   username                    = var.db_username
   password                    = random_password.db.result
-  db_name                     = "${var.db_name}-${var.team}-${var.environment}"
+  db_name                     = "${var.db_name}_${var.team}_${var.environment}"
   identifier                  = "pg-${var.team}-${var.environment}"
   skip_final_snapshot         = true
   allow_major_version_upgrade = true
