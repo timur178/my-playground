@@ -1,0 +1,33 @@
+# kafka-gitops/02-kafka/kafka-nodepools.yaml
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: combined
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: medtech
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  replicas: 3
+  roles:
+    - controller
+    - broker
+  # Storage via EBS CSI (gp3 StorageClass in your cluster)
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 100Gi
+        deleteClaim: false
+        class: gp3
+  template:
+    pod:
+      nodeSelector:
+        dedicated: kafka
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "kafka"
+          effect: "NoSchedule"

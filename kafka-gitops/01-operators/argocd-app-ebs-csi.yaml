@@ -1,0 +1,27 @@
+# # kafka-gitops/01-operators/argocd-app-ebs-csi.yaml  (skip if using EKS add-on)
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: aws-ebs-csi
+#   namespace: argocd
+#   annotations:
+#     argocd.argoproj.io/sync-wave: "12"
+# spec:
+#   project: kafka
+#   destination:
+#     namespace: kube-system
+#     server: https://kubernetes.default.svc
+#   source:
+#     repoURL: https://kubernetes-sigs.github.io/aws-ebs-csi-driver
+#     chart: aws-ebs-csi-driver
+#     targetRevision: 2.32.0
+#     helm:
+#       values: |
+#         controller:
+#           serviceAccount:
+#             create: true
+#             name: ebs-csi-controller-sa
+#             annotations:
+#               eks.amazonaws.com/role-arn: ${EBS_CSI_IRSA_ROLE_ARN}
+#   syncPolicy:
+#     automated: { prune: true, selfHeal: true }

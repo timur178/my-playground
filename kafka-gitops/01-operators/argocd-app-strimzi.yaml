@@ -1,0 +1,24 @@
+# kafka-gitops/01-operators/argocd-app-strimzi.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: strimzi-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: kafka
+  destination:
+    namespace: kafka
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://strimzi.io/charts/
+    chart: strimzi-kafka-operator
+    targetRevision: 0.48.0
+    helm:
+      releaseName: strimzi
+      valuesObject:
+        watchNamespaces:
+          - kafka
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }

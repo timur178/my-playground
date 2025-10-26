@@ -1,0 +1,20 @@
+# kafka-gitops/02-kafka/kafka-user-app.yaml
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: app
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: medtech
+  annotations:
+    argocd.argoproj.io/sync-wave: "24"
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource: { type: topic, name: sensor-data, patternType: literal }
+        operations: [ Create, Write, Read, Describe ]
+      - resource: { type: group, name: app-group, patternType: literal }
+        operations: [ Read ]

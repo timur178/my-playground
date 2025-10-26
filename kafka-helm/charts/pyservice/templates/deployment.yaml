@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pyservice.fullname" . }}                   # deployment name = chart name
+  labels:
+    app.kubernetes.io/name: {{ include "pyservice.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}                         # scale factor
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "pyservice.name" . }} # must match template labels
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "pyservice.name" . }}
+    spec:
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"   # ECR image+tag
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.containerPort }}            # Flask port
+          env:
+            # --- Kafka connection (required by ticket) ---
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "{{ .Values.kafka.bootstrap }}"
+            - name: TOPIC_NAME
+              value: "{{ .Values.kafka.topic }}"
+            {{- if .Values.kafka.auth.enabled }}
+            - name: KAFKA_SECURITY_PROTOCOL
+              value: "SASL_PLAINTEXT"                                       # SCRAM without TLS
+            - name: KAFKA_SASL_MECHANISM
+              value: "{{ .Values.kafka.auth.mechanism }}"
+            - name: KAFKA_SASL_USERNAME
+              value: "{{ .Values.kafka.auth.user }}"
+            - name: KAFKA_SASL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ .Values.kafka.auth.passwordSecretName }}"       # Secret from Strimzi KafkaUser
+                  key: "{{ .Values.kafka.auth.passwordSecretKey }}"         # usually "password"
+            {{- end }}
+
+            # --- Postgres connection (ESO-provided secret; no hardcoded creds) ---
+            {{- if .Values.db.enabled }}
+            - name: DB_HOST
+              valueFrom: { secretKeyRef: { name: "{{ .Values.db.secretName }}", key: DB_HOST } }
+            - name: DB_PORT
+              valueFrom: { secretKeyRef: { name: "{{ .Values.db.secretName }}", key: DB_PORT } }
+            - name: DB_NAME
+              valueFrom: { secretKeyRef: { name: "{{ .Values.db.secretName }}", key: DB_NAME } }
+            - name: DB_USER
+              valueFrom: { secretKeyRef: { name: "{{ .Values.db.secretName }}", key: DB_USER } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: "{{ .Values.db.secretName }}", key: DB_PASSWORD } }
+            {{- end }}
+
+          readinessProbe:                                          # basic HTTP health
+            httpGet: { path: /health, port: {{ .Values.service.containerPort }} }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: {{ .Values.service.containerPort }} }
+            initialDelaySeconds: 15
+
+          resources: {{- toYaml .Values.resources | nindent 12 }}

@@ -1,0 +1,33 @@
+image:
+  repository: 000000000000.dkr.ecr.us-east-1.amazonaws.com/placeholder  # will be overridden per app
+  tag: "latest"                                                         # will be overridden per app
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80                 # service port (stable), maps to containerPort beneath
+  containerPort: 5000      # Flask default
+
+kafka:
+  bootstrap: medtech-kafka-bootstrap.kafka.svc.cluster.local:9092  # Strimzi bootstrap Service
+  topic: sensor-data
+  auth:
+    enabled: true
+    mechanism: SCRAM-SHA-512
+    user: app
+    passwordSecretName: app       # Secret auto-created by Strimzi KafkaUser "app"
+    passwordSecretKey: password   # Key that holds the SCRAM password
+
+db:
+  enabled: false                  # only consumer + dashboard need DB
+  secretName: postgres-credentials  # Secret injected by External Secrets Operator
+
+ingress:
+  enabled: false                  # only dashboard exposes HTTP
+  className: nginx                # reuse your existing ingress-nginx
+  host: ""                        # e.g. kafka-dashboard-TEAM-dev.TEAM_DOMAIN
+  tlsSecret: ""                   # cert secret name (cert-manager or precreated)
+
+resources: {}                     # let you add requests/limits later

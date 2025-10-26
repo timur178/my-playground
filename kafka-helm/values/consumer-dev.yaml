@@ -1,0 +1,17 @@
+image:
+  repository: ${ECR_REGISTRY}/kafka-consumer
+  tag: ${IMAGE_TAG}
+
+kafka:
+  bootstrap: medtech-kafka-bootstrap.kafka.svc.cluster.local:9092
+  topic: sensor-data
+  auth:
+    enabled: true
+    mechanism: SCRAM-SHA-512
+    user: app
+    passwordSecretName: app
+    passwordSecretKey: password
+
+db:
+  enabled: true
+  secretName: postgres-credentials     # from External Secrets Operator

@@ -1,0 +1,25 @@
+# # kafka-gitops/05-ingress/dashboard-ingress.yaml
+# # (Optional) extra ingress if you don't keep it in Helm
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: kafka-dashboard
+#   namespace: kafka
+#   annotations:
+#     argocd.argoproj.io/sync-wave: "48"
+#     kubernetes.io/ingress.class: nginx
+#     cert-manager.io/cluster-issuer: letsencrypt
+# spec:
+#   tls:
+#     - hosts: [ "kafka-dashboard-${TEAM}-${ENVIRONMENT_STAGE}.${TEAM_DOMAIN}" ]
+#       secretName: kafka-dashboard-tls
+#   rules:
+#     - host: kafka-dashboard-${TEAM}-${ENVIRONMENT_STAGE}.${TEAM_DOMAIN}
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: kafka-dashboard
+#                 port: { number: 80 }

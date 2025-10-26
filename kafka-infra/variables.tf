@@ -9,3 +9,5 @@ variable "db_name" { type = string }
 variable "db_username" { type = string }
 variable "eks_oidc_provider_url" { type = string }
 variable "eks_oidc_provider_arn" { type = string }
+variable "ecr_repo_names" { type = list(string) }
+variable "ecr_repo_prefix" { type = string }

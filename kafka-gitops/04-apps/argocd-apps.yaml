@@ -1,0 +1,59 @@
+# kafka-gitops/04-apps/argocd-app-producer.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka-producer
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "40"
+spec:
+  project: kafka
+  destination: { namespace: kafka, server: https://kubernetes.default.svc }
+  source:
+    repoURL: https://github.com/timur178/my-playground.git
+    targetRevision: feature/kafka-dev
+    path: kafka-helm/charts/pyservice
+    helm:
+      valueFiles:
+        - ../../values/producer-dev.yaml
+  syncPolicy: { automated: { prune: true, selfHeal: true } }
+---
+# kafka-gitops/04-apps/argocd-app-consumer.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka-consumer
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "40"
+spec:
+  project: kafka
+  destination: { namespace: kafka, server: https://kubernetes.default.svc }
+  source:
+    repoURL: https://github.com/timur178/my-playground.git
+    targetRevision: feature/kafka-dev
+    path: kafka-helm/charts/pyservice
+    helm:
+      valueFiles:
+        - ../../values/consumer-dev.yaml
+  syncPolicy: { automated: { prune: true, selfHeal: true } }
+---
+# kafka-gitops/04-apps/argocd-app-dashboard.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka-dashboard
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "42"
+spec:
+  project: kafka
+  destination: { namespace: kafka, server: https://kubernetes.default.svc }
+  source:
+    repoURL: https://github.com/timur178/my-playground.git
+    targetRevision: feature/kafka-dev
+    path: kafka-helm/charts/pyservice
+    helm:
+      valueFiles:
+        - ../../values/dashboard-dev.yaml
+  syncPolicy: { automated: { prune: true, selfHeal: true } }

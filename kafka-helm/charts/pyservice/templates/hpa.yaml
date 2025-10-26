@@ -1,0 +1,20 @@
+{{- if .Values.hpa }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "pyservice.fullname" . }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "pyservice.fullname" . }}
+  minReplicas: {{ .Values.hpa.min | default 1 }}
+  maxReplicas: {{ .Values.hpa.max | default 3 }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.hpa.cpuUtilization | default 70 }}
+{{- end }}

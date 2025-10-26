@@ -1,0 +1,9 @@
+# kafka-gitops/00-namespaces/kafka-ns.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafka
+  labels:
+    name: kafka
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"

@@ -1,0 +1,4 @@
+apiVersion: v2          # Helm v3 chart format
+name: pyservice         # Reusable chart name
+version: 0.1.0          # Your chart’s own versioning
+type: application       # It deploys workloads (not a library chart)

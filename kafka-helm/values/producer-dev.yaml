@@ -1,0 +1,19 @@
+image:
+  repository: ${ECR_REGISTRY}/kafka-producer   # ECR repo name
+  tag: ${IMAGE_TAG}                            # e.g., the commit SHA
+
+service:
+  containerPort: 5000
+
+kafka:
+  bootstrap: medtech-kafka-bootstrap.kafka.svc.cluster.local:9092
+  topic: sensor-data
+  auth:
+    enabled: true
+    mechanism: SCRAM-SHA-512
+    user: app
+    passwordSecretName: app
+    passwordSecretKey: password
+
+db:
+  enabled: false

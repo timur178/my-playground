@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pyservice.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "pyservice.name" . }}
+spec:
+  type: {{ .Values.service.type }}                   # ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "pyservice.name" . }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}              # 80 inside the cluster
+      targetPort: {{ .Values.service.containerPort }} # forwards to Flask

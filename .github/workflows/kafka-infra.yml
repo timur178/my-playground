@@ -51,7 +51,9 @@ jobs:
             -var "db_name=${{ vars.DB_NAME }}" \
             -var 'db_username=${{ vars.DB_USERNAME }}' \
             -var 'eks_oidc_provider_arn=${{ vars.EKS_OIDC_PROVIDER_ARN }}' \
-            -var 'eks_oidc_provider_url=${{ vars.EKS_OIDC_PROVIDER_URL }}'
+            -var 'eks_oidc_provider_url=${{ vars.EKS_OIDC_PROVIDER_URL }}' \
+            -var 'ecr_repo_names=${{ vars.ECR_REPO_NAMES_JSON }}' \
+            -var 'ecr_repo_prefix=${{ vars.TEAM }}/${{ vars.ENVIRONMENT_STAGE }}'
       
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan

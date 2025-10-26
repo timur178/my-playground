@@ -1,0 +1,41 @@
+# name: render-and-validate-gitops
+# on:
+#   push:
+#     paths:
+#       - "kafka-gitops/**"
+#       - ".github/workflows/gitops-validate.yaml"
+#   workflow_dispatch: {}
+
+# env:
+#   AWS_REGION: ${{ vars.AWS_REGION }}
+#   ESO_IRSA_ROLE_ARN: ${{ vars.ESO_IRSA_ROLE_ARN }}
+#   EBS_CSI_IRSA_ROLE_ARN: ${{ vars.EBS_CSI_IRSA_ROLE_ARN }}
+#   TEAM: ${{ vars.TEAM }}
+#   TEAM_DOMAIN: ${{ vars.TEAM_DOMAIN }}
+#   ENVIRONMENT_STAGE: ${{ vars.ENVIRONMENT_STAGE }}
+#   RDS_SECRET_NAME: ${{ vars.RDS_SECRET_NAME }}
+
+# jobs:
+#   render:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+
+#       - name: Render to kafka-gitops/rendered/dev
+#         run: |
+#           mkdir -p kafka-gitops/rendered/dev
+#           find kafka-gitops -maxdepth 3 -name '*.yaml' ! -path '*/rendered/*' -print0 \
+#             | xargs -0 -I {} sh -c 'mkdir -p kafka-gitops/rendered/dev/$(dirname "{}" | cut -d/ -f3-); envsubst < "{}" > kafka-gitops/rendered/dev/$(echo "{}" | cut -d/ -f3-)'
+
+#       - name: Validate manifests (kubeconform)
+#         run: |
+#           curl -L https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz
+#           ./kubeconform -summary -ignore-missing-schemas -strict kafka-gitops/rendered/dev
+
+#       - name: Commit rendered
+#         run: |
+#           git add kafka-gitops/rendered/dev || true
+#           git config user.name ci-bot
+#           git config user.email ci@example.com
+#           git commit -m "ci: render gitops for dev" || echo "no changes"
+#           git push || true

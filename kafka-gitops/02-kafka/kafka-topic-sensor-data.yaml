@@ -1,0 +1,15 @@
+# kafka-gitops/02-kafka/kafka-topic-sensor-data.yaml
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: sensor-data
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: medtech
+  annotations:
+    argocd.argoproj.io/sync-wave: "24"
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    retention.ms: 604800000
