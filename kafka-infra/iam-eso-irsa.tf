@@ -34,18 +34,3 @@ resource "aws_iam_role_policy_attachment" "eso" {
   role       = aws_iam_role.eso.name
   policy_arn = aws_iam_policy.eso.arn
 }
-
-# resource "kubernetes_namespace" "kafka" {
-#   metadata { name = "kafka" }
-# }
-
-# resource "kubernetes_service_account" "external_secrets" {
-#   metadata {
-#     name      = "external-secrets"
-#     namespace = "kafka"
-#     annotations = {
-#       "eks.amazonaws.com/role-arn" = aws_iam_role.eso.arn
-#     }
-#   }
-#   depends_on = [kubernetes_namespace.kafka]
-# }

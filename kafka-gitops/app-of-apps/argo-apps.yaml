@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/timur178/my-playground.git 
-    targetRevision: main
+    targetRevision: HEAD
     path: kafka-gitops/apps
     directory:
       recurse: true
