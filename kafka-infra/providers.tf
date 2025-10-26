@@ -4,7 +4,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket       = "tfstate-kafka-streaming-platform-25a-ubuntu-dev"
+    bucket       = "tfstate-kafka-streaming-platform-25a-ubuntu"
     key          = "dev/kafka-infra/terraform.tfstate"
     region       = "us-east-1"
     use_lockfile = true
