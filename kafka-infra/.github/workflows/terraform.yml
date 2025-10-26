@@ -2,6 +2,13 @@ name: Terraform Deploy
 on:
   push:
     branches: ["feature/**", "staging", "main"]
+    paths:
+      - "kafka-infra/**"
+      - ".github/workflows/terraform-infra.yml"
+  pull_request:
+    branches: ["staging", "main"]
+    paths:
+      - "kafka-infra/**"
   workflow_dispatch:
 
 jobs:

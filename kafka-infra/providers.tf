@@ -3,11 +3,7 @@ terraform {
     aws = { source = "hashicorp/aws", version = "~> 6.0" }
   }
 
-  backend "s3" {
-    key          = "terraform.tfstate"
-    region       = "us-east-1"
-    use_lockfile = true
-  }
+  backend "s3" {}
 }
 
 provider "aws" {
