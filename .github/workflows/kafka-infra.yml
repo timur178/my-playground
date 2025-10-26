@@ -28,30 +28,42 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
 
-      - name: Terraform Init/Plan/Apply
+      - name: Terraform Force Unlock (if needed)
+        run: terraform force-unlock -force $(terraform state list | head -n 1 | awk -F'.' '{print $1}') || echo "No lock found, continuing..."
+
+
+      - name: Debug subnet var
         run: |
-          terraform init -reconfigure \
-            -backend-config="bucket=${{ vars.TF_BACKEND_S3_BUCKET }}" \
-            -backend-config="key=${{ vars.ENVIRONMENT_STAGE }}/kafka-infra/terraform.tfstate" \
-            -backend-config="region=${{ vars.AWS_REGION }}" \
-            -backend-config="use_lockfile=true"
-          # terraform init -reconfigure
-          terraform fmt -check -recursive
-          terraform validate
+          echo "Raw JSON:"
+          echo '${{ vars.PRIVATE_SUBNET_IDS_JSON }}'
+          echo
+          echo "Parsed value:"
+          echo '${{ vars.PRIVATE_SUBNET_IDS_JSON }}' | jq .
+      
+      # - name: Terraform Init/Plan/Apply
+      #   run: |
+      #     terraform init -reconfigure \
+      #       -backend-config="bucket=${{ vars.TF_BACKEND_S3_BUCKET }}" \
+      #       -backend-config="key=${{ vars.ENVIRONMENT_STAGE }}/kafka-infra/terraform.tfstate" \
+      #       -backend-config="region=${{ vars.AWS_REGION }}" \
+      #       -backend-config="use_lockfile=true"
+      #     # terraform init -reconfigure
+      #     terraform fmt -check -recursive
+      #     terraform validate
           
-          terraform plan -out tfplan \
-            -var 'region=${{ vars.AWS_REGION }}' \
-            -var 'environment=${{ vars.ENVIRONMENT_STAGE }}' \
-            -var 'team=${{ vars.TEAM }}' \
-            -var 'eks_cluster_name=${{ vars.EKS_CLUSTER_NAME }}' \
-            -var 'eks_node_role_arn=${{ vars.EKS_NODE_ROLE_ARN }}' \
-            -var 'vpc_id=${{ vars.VPC_ID }}' \
-            -var 'private_subnet_ids=${{ vars.PRIVATE_SUBNET_IDS }}' \
-            -var 'eks_nodes_security_group_id=${{ vars.EKS_NODES_SG_ID }}' \
-            -var 'db_name=${{ vars.DB_NAME }}' \
-            -var 'db_username=${{ vars.DB_USERNAME }}' \
-            -var 'eks_oidc_provider_arn=${{ vars.EKS_OIDC_PROVIDER_ARN }}' \
-            -var 'eks_oidc_provider_url=${{ vars.EKS_OIDC_PROVIDER_URL }}'
+      #     terraform plan -out tfplan \
+      #       -var 'region=${{ vars.AWS_REGION }}' \
+      #       -var 'environment=${{ vars.ENVIRONMENT_STAGE }}' \
+      #       -var 'team=${{ vars.TEAM }}' \
+      #       -var 'eks_cluster_name=${{ vars.EKS_CLUSTER_NAME }}' \
+      #       -var 'eks_node_role_arn=${{ vars.EKS_NODE_ROLE_ARN }}' \
+      #       -var 'vpc_id=${{ vars.VPC_ID }}' \
+      #       -var 'private_subnet_ids=${{ vars.PRIVATE_SUBNET_IDS_JSON }}' \
+      #       -var 'eks_nodes_security_group_id=${{ vars.EKS_NODES_SG_ID }}' \
+      #       -var 'db_name=${{ vars.DB_NAME }}' \
+      #       -var 'db_username=${{ vars.DB_USERNAME }}' \
+      #       -var 'eks_oidc_provider_arn=${{ vars.EKS_OIDC_PROVIDER_ARN }}' \
+      #       -var 'eks_oidc_provider_url=${{ vars.EKS_OIDC_PROVIDER_URL }}'
       
       # - name: Terraform Apply
       #   run: terraform apply -auto-approve tfplan
