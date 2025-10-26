@@ -49,7 +49,7 @@ jobs:
             -var 'vpc_id=${{ vars.VPC_ID }}' \
             -var 'private_subnet_ids=${{ vars.PRIVATE_SUBNET_IDS_JSON }}' \
             -var 'eks_nodes_security_group_id=${{ vars.EKS_NODES_SG_ID }}' \
-            -var 'db_name=${{ vars.DB_NAME }}' \
+            -var "db_name=${{ vars.DB_NAME }}" \
             -var 'db_username=${{ vars.DB_USERNAME }}' \
             -var 'eks_oidc_provider_arn=${{ vars.EKS_OIDC_PROVIDER_ARN }}' \
             -var 'eks_oidc_provider_url=${{ vars.EKS_OIDC_PROVIDER_URL }}'
