@@ -4,11 +4,12 @@ on:
     branches: ["feature/**", "staging", "main"]
     paths:
       - "kafka-infra/**"
-      - ".github/workflows/terraform-infra.yml"
+      - ".github/workflows/kafka-infra.yml"
   pull_request:
     branches: ["staging", "main"]
     paths:
       - "kafka-infra/**"
+      - ".github/workflows/kafka-infra.yml"
   workflow_dispatch:
 
 jobs:
