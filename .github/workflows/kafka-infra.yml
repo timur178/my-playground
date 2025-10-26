@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  tf:
+  kafka-infra:
     environment: ${{ (github.ref == 'refs/heads/main' && 'production') || (github.ref == 'refs/heads/staging' && 'staging') || 'dev' }}
     runs-on: ubuntu-latest
     permissions: { id-token: write, contents: read }
@@ -28,7 +28,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
 
-      - name: Terraform Init/Plan/Apply
+      - name: Terraform Init
         run: |
           terraform init -reconfigure \
             -backend-config="bucket=${{ vars.TF_BACKEND_S3_BUCKET }}" \
@@ -38,6 +38,8 @@ jobs:
           # terraform force-unlock -force fd0cfc02-1cf5-1831-74fd-e5acd00ce624
           terraform fmt -check -recursive
           
+      - name: Terraform Plan
+        run: |
           terraform plan -out tfplan \
             -var 'region=${{ vars.AWS_REGION }}' \
             -var 'environment=${{ vars.ENVIRONMENT_STAGE }}' \
@@ -52,13 +54,6 @@ jobs:
             -var 'eks_oidc_provider_arn=${{ vars.EKS_OIDC_PROVIDER_ARN }}' \
             -var 'eks_oidc_provider_url=${{ vars.EKS_OIDC_PROVIDER_URL }}'
       
-      
-      
-      
-      
-      
-      
-      
-      
-      # - name: Terraform Apply
-      #   run: terraform apply -auto-approve tfplan
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        
