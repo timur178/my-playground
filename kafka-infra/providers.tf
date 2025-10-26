@@ -3,14 +3,16 @@ terraform {
     aws = { source = "hashicorp/aws", version = "~> 6.0" }
   }
 
-  backend "s3" {
-    # bucket       = "tfstate-kafka-streaming-platform-25a-ubuntu"
-    # key          = "dev/kafka-infra/terraform.tfstate"
-    # region       = "us-east-1"
-    # use_lockfile = true
-  }
+  backend "s3" {}
 }
 
 provider "aws" {
   region = var.region
+
+  default_tags {
+    tags = {
+      Team        = var.team
+      Environment = var.environment
+    }
+  }
 }
