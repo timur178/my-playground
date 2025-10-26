@@ -39,7 +39,7 @@ resource "aws_secretsmanager_secret_version" "db" {
   secret_string = jsonencode({
     username = var.db_username
     password = random_password.db.result
-    dbname   = "${var.db_name}-${var.team}-${var.environment}"
+    dbname   = var.db_name
   })
 }
 
