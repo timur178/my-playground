@@ -1,5 +1,5 @@
 url            = "https://token.actions.githubusercontent.com"
 project        = "kafka"
-github_org     = "312school"
-github_repo    = "kafka-streaming-platform-25a-ubuntu"
+github_org     = "timur178"
+github_repo    = "my-playground"
 oidc_role_name = "gha-runner-tf-oidc-role"
