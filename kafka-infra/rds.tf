@@ -39,7 +39,7 @@ resource "aws_secretsmanager_secret_version" "db" {
   secret_string = jsonencode({
     username = var.db_username
     password = random_password.db.result
-    dbname   = "${var.db_name}_${var.team}_${var.environment}"
+    dbname   = "${var.db_name}-${var.team}-${var.environment}"
   })
 }
 
@@ -56,8 +56,8 @@ resource "aws_db_instance" "pg" {
   vpc_security_group_ids      = [aws_security_group.pg.id]
   username                    = var.db_username
   password                    = random_password.db.result
-  db_name                     = "${var.db_name}_${var.team}_${var.environment}_pg17"
-  identifier                  = "${var.team}_${var.environment}_pg"
+  db_name                     = "${var.db_name}-${var.team}-${var.environment}"
+  identifier                  = "pg-${var.team}-${var.environment}"
   skip_final_snapshot         = true
   allow_major_version_upgrade = true
   apply_immediately           = true

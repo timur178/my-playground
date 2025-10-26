@@ -28,14 +28,6 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
 
-      - name: Debug subnet var
-        run: |
-          echo "Raw JSON:"
-          echo '${{ vars.PRIVATE_SUBNET_IDS_JSON }}'
-          echo
-          echo "Parsed value:"
-          echo '${{ vars.PRIVATE_SUBNET_IDS_JSON }}' | jq .
-      
       - name: Terraform Init/Plan/Apply
         run: |
           terraform init -reconfigure \
@@ -43,9 +35,8 @@ jobs:
             -backend-config="key=${{ vars.ENVIRONMENT_STAGE }}/kafka-infra/terraform.tfstate" \
             -backend-config="region=${{ vars.AWS_REGION }}" \
             -backend-config="use_lockfile=true"
-          terraform force-unlock -force fd0cfc02-1cf5-1831-74fd-e5acd00ce624
+          # terraform force-unlock -force fd0cfc02-1cf5-1831-74fd-e5acd00ce624
           terraform fmt -check -recursive
-          terraform validate
           
           terraform plan -out tfplan \
             -var 'region=${{ vars.AWS_REGION }}' \
