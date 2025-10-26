@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: kafka
+  name: kafka-streaming-platform
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: https://github.com/YOUR_ORG/kafka-gitops.git
+    repoURL: https://github.com/timur178/my-playground.git 
     targetRevision: main
-    path: apps
+    path: kafka-gitops/apps
     directory:
       recurse: true
   destination:
