@@ -17,6 +17,9 @@ jobs:
     environment: ${{ (github.ref == 'refs/heads/main' && 'production') || (github.ref == 'refs/heads/staging' && 'staging') || 'dev' }}
     runs-on: ubuntu-latest
     permissions: { id-token: write, contents: read }
+    defaults:
+      run:
+        working-directory: kafka-infra
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
