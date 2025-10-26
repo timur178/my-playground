@@ -27,7 +27,7 @@ jobs:
 
       - name: Terraform Init/Plan/Apply
         run: |
-          terraform init -reconfigure \
+          terraform init \
             -backend-config="bucket=${{ vars.TFSTATE_S3_BUCKET }}" \
             -backend-config="key=${{ vars.ENVIRONMENT_STAGE }}/kafka-infra/terraform.tfstate" \
             -backend-config="region=${{ vars.AWS_REGION }}" \
