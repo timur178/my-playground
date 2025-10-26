@@ -29,7 +29,7 @@ jobs:
           role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
 
       - name: Terraform Force Unlock (if needed)
-        run: terraform force-unlock -force $(terraform state list | head -n 1 | awk -F'.' '{print $1}') || echo "No lock found, continuing..."
+        run: terraform force-unlock -force fd0cfc02-1cf5-1831-74fd-e5acd00ce624
 
 
       - name: Debug subnet var
