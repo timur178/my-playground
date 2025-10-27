@@ -35,7 +35,7 @@ jobs:
             -backend-config="key=${{ vars.ENVIRONMENT_STAGE }}/kafka-infra/terraform.tfstate" \
             -backend-config="region=${{ vars.AWS_REGION }}" \
             -backend-config="use_lockfile=true"
-          terraform force-unlock -force 869919d9-c69f-dbd9-2fa9-aab4b35d6b16
+          terraform force-unlock -force 53e5bcf1-1dc6-f28f-34a3-039449c804c2
           terraform fmt -check -recursive
           
       - name: Terraform Plan
