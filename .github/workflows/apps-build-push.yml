@@ -7,7 +7,7 @@ on:
       - "consumer_api.py"
       - "dashboard.py"
       - "kafka-helm/**"
-      - ".github/workflows/apps-build-push.yaml"
+      - ".github/workflows/apps-build-push.yml"
   workflow_dispatch: {}
 
 env:
@@ -54,17 +54,10 @@ jobs:
         id: short
         run: echo "sha7=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
-      - name: Compute repo path
-        id: repo
-        shell: sh
+      - name: Compose image name
+        id: img
         run: |
-          prefix='${{ env.ECR_REPO_PREFIX }}'
-          repo='${{ matrix.app.repo }}'
-          if [ -n "$prefix" ]; then
-            echo "name=${prefix}/${repo}" >> "$GITHUB_OUTPUT"
-          else
-            echo "name=${repo}" >> "$GITHUB_OUTPUT"
-          fi
+          echo "name=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_PREFIX }}/${{ matrix.app.repo }}" >> "$GITHUB_OUTPUT"
 
       - name: Build & push
         uses: docker/build-push-action@v6
@@ -73,6 +66,5 @@ jobs:
           file: ${{ matrix.app.dockerfile }}
           push: true
           tags: |
-            ${{ env.ECR_REGISTRY }}/${{ steps.repo.outputs.name }}:${{ steps.short.outputs.sha7 }}
-            ${{ env.ECR_REGISTRY }}/${{ steps.repo.outputs.name }}:latest
-
+            ${{ steps.img.outputs.name }}:${{ steps.short.outputs.sha7 }}
+            ${{ steps.img.outputs.name }}:latest

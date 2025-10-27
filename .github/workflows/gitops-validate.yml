@@ -3,7 +3,7 @@ on:
   push:
     paths:
       - "kafka-gitops/**"
-      - ".github/workflows/gitops-validate.yaml"
+      - ".github/workflows/gitops-validate.yml"
   workflow_dispatch: {}
 
 env:

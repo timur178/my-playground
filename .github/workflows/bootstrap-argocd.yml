@@ -6,7 +6,7 @@ on:
   push:
     branches: [ feature/kafka-dev ]
     paths:
-      - ".github/workflows/bootstrap-argocd.yaml"
+      - ".github/workflows/bootstrap-argocd.yml"
       - "kafka-gitops/**"
 
 permissions:
