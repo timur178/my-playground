@@ -13,3 +13,4 @@ variable "eks_oidc_provider_arn" { type = string }
 variable "ecr_repo_names" { type = list(string) }
 variable "ecr_repo_prefix" { type = string }
 variable "team_domain" { type = string }
+variable "github_actions_role_arn" { type = string }
