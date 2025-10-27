@@ -7,7 +7,7 @@ on:
       - "consumer_api.py"
       - "dashboard.py"
       - "kafka-helm/**"
-      - ".github/workflows/apps-build-push.yml"
+      - ".github/workflows/apps-build-push.yaml"
   workflow_dispatch: {}
 
 env:
