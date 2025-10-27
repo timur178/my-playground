@@ -66,14 +66,38 @@ jobs:
       - name: Apply AppProject (kafka)
         run: kubectl -n argocd apply -f kafka-gitops/app-project.yaml
 
-      # --- Apply Argo CD accounts and RBAC ---
-      - name: Apply Argo CD accounts & RBAC
-        run: kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
-
-      - name: Restart argocd-server to reload RBAC
+      # --- Apply RBAC and roll only if changed (robust, idempotent) ---
+      - name: Apply Argo CD accounts & RBAC (roll server if changed)
+        id: rbac
         run: |
-          kubectl -n argocd rollout restart deploy/argocd-server
-          kubectl -n argocd rollout status  deploy/argocd-server --timeout=3m
+          set -euo pipefail
+
+          # Apply your RBAC/accounts manifests
+          kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
+
+          # Compute a hash of the config that argocd-server cares about
+          HASH=$(
+            kubectl -n argocd get cm argocd-rbac-cm -o json 2>/dev/null || true
+            kubectl -n argocd get cm argocd-cm     -o json 2>/dev/null || true
+          | sha1sum | awk '{print $1}'
+          )
+
+          # Patch the Deployment template with the hash; this only triggers a rollout when content changes
+          kubectl -n argocd patch deploy argocd-server \
+            --type merge \
+            -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"rbac-hash\":\"${HASH}\"}}}}}"
+
+          # Give it plenty of time; pulling images + TLS init can be slow
+          kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
+
+      - name: Debug Argo CD server if rollout failed
+        if: failure()
+        run: |
+          set -x
+          kubectl -n argocd get pods -o wide
+          kubectl -n argocd describe deploy/argocd-server || true
+          POD=$(kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-server -o jsonpath='{.items[0].metadata.name}' || true)
+          kubectl -n argocd logs "$POD" --tail=200 || true
 
       # --- Generate API token for image-updater and create Secret ---
       - name: Mint token and create Secret for Image Updater
