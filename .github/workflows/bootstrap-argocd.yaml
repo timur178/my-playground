@@ -1,0 +1,77 @@
+name: bootstrap-argocd
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION:              ${{ vars.AWS_REGION }}
+  AWS_OIDC_ROLE_ARN:       ${{ vars.AWS_OIDC_ROLE_ARN }}
+  EKS_CLUSTER_NAME:        ${{ vars.EKS_CLUSTER_NAME }}
+  GITOPS_REPO_URL:         ${{ vars.GITOPS_REPO_URL }}        
+  GITOPS_TARGET_REVISION:  ${{ vars.GITOPS_TARGET_REVISION }} 
+  # Optional: provide to VERIFY ACM on the NLB (no changes made)
+  ACM_CERT_ARN:            ${{ vars.ACM_CERT_ARN }}
+
+jobs:
+  bootstrap:
+    environment: dev
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set kubeconfig to EKS
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
+
+      # --- Argo CD install/upgrade (idempotent) ---
+      - name: Ensure argocd namespace
+        run: kubectl get ns argocd >/dev/null 2>&1 || kubectl create ns argocd
+
+      - name: Install / upgrade Argo CD
+        run: kubectl -n argocd apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+      - name: Wait for Argo CD to be ready
+        run: |
+          kubectl -n argocd rollout status deploy/argocd-server --timeout=5m
+          kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=5m
+          kubectl -n argocd rollout status deploy/argocd-application-controller --timeout=5m
+
+      # --- AppProject (from repo) ---
+      - name: Apply AppProject (kafka)
+        run: kubectl -n argocd apply -f kafka-gitops/app-project.yaml
+
+      # --- Root Application (use the file; fill vars with envsubst) ---
+      - name: Apply root Application (kafka-bootstrap)
+        run: |
+          set -euo pipefail
+          envsubst < kafka-gitops/app-of-apps.yaml | kubectl apply -f -
+          kubectl -n argocd get application kafka-bootstrap
+
+      # --- VERIFY ONLY: ACM is attached to nginx NLB (if ARN provided) ---
+      - name: Verify ACM is attached to nginx NLB
+        if: env.ACM_CERT_ARN != ''
+        run: |
+          set -euo pipefail
+          NS=ingress-nginx
+          SVC=ingress-nginx-controller
+          SVC_ARN=$(kubectl -n "$NS" get svc "$SVC" -o jsonpath='{.metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert}')
+          test -n "${SVC_ARN:-}" || { echo "::error:: Service missing ssl-cert annotation"; exit 1; }
+          [ "$SVC_ARN" = "$ACM_CERT_ARN" ] || { echo "::error:: Annotation ($SVC_ARN) != expected ($ACM_CERT_ARN)"; exit 1; }
+
+          LB_DNS=$(kubectl -n "$NS" get svc "$SVC" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          test -n "${LB_DNS:-}" || { echo "::error:: LB hostname not ready"; exit 1; }
+          LB_ARN=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
+            --query "LoadBalancers[?DNSName=='$LB_DNS'].LoadBalancerArn" --output text)
+          LISTENER_CERTS=$(aws elbv2 describe-listeners --region "$AWS_REGION" \
+            --load-balancer-arn "$LB_ARN" --query "Listeners[?Port==\`443\`].Certificates[].CertificateArn" --output text)
+          echo "$LISTENER_CERTS" | grep -q "$ACM_CERT_ARN" || { echo "::error:: NLB 443 does not reference ACM_CERT_ARN"; exit 1; }

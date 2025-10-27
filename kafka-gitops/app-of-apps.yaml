@@ -12,9 +12,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: argocd
   source:
-    repoURL: https://github.com/timur178/my-playground.git
-    targetRevision: feature/kafka-dev
-    path: kafka-gitops/rendered/dev     # <— not the raw folder anymore
+    repoURL: ${GITOPS_REPO_URL}
+    targetRevision: ${GITOPS_TARGET_REVISION}
+    path: kafka-gitops/rendered/dev
     directory:
       recurse: true
   syncPolicy:
