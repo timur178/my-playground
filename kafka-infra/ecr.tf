@@ -41,10 +41,10 @@ resource "aws_ecr_lifecycle_policy" "lc" {
         description  = "Keep last 5 tagged images"
         action       = { type = "expire" }
         selection = {
-          tagStatus     = "tagged",
-          countType     = "imageCountMoreThan",
-          countNumber   = 5,
-          tagPrefixList = ["*"]
+          tagStatus      = "tagged",
+          countType      = "imageCountMoreThan",
+          countNumber    = 5,
+          tagPatternList = ["*"]
         }
       }
     ]
