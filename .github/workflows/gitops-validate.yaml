@@ -31,18 +31,27 @@ jobs:
 
       - name: Render to kafka-gitops/rendered/dev
         run: |
+          set -euo pipefail
+          rm -rf kafka-gitops/rendered/dev
           mkdir -p kafka-gitops/rendered/dev
-          find kafka-gitops -maxdepth 3 -name '*.yaml' ! -path '*/rendered/*' -print0 \
-            | xargs -0 -I {} sh -c 'mkdir -p kafka-gitops/rendered/dev/$(dirname "{}" | cut -d/ -f3-); envsubst < "{}" > kafka-gitops/rendered/dev/$(echo "{}" | cut -d/ -f3-)'
+
+          # copy only *.yaml while preserving dirs, exclude any existing rendered/
+          rsync -a --prune-empty-dirs \
+            --include '*/' --include '*.yaml' --exclude '*' \
+            --exclude 'rendered/' \
+            kafka-gitops/ kafka-gitops/rendered/dev/
+
+          # envsubst all yaml files in place
+          while IFS= read -r -d '' f; do
+            tmp="${f}.tmp"
+            envsubst < "$f" > "$tmp" && mv "$tmp" "$f"
+          done < <(find kafka-gitops/rendered/dev -type f -name '*.yaml' -print0)
 
       - name: Fail if any ${VARS} remain after render
         run: |
           LEFT=$(grep -R '\${[A-Za-z_][A-Za-z0-9_]*}' kafka-gitops/rendered/dev || true)
-          if [ -n "$LEFT" ]; then
-            echo "ERROR: Unresolved placeholders remain:"
-            echo "$LEFT"
-            exit 1
-          fi
+          test -z "$LEFT" || { echo "Unresolved placeholders:"; echo "$LEFT"; exit 1; }
+
 
       - name: Validate manifests (kubeconform)
         run: |

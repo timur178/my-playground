@@ -17,13 +17,25 @@ jobs:
   docker-build:
     environment: ${{ (github.ref == 'refs/heads/main' && 'production') || (github.ref == 'refs/heads/staging' && 'staging') || 'dev' }}
     runs-on: ubuntu-latest
-    permissions: { id-token: write, contents: write }
+    permissions: { id-token: write, contents: read }
     strategy:
       matrix:
         app:
-          - { name: kafka-producer,  dir: ., dockerfile: Dockerfile.producer,  repo: kafka-producer,  values: kafka-helm/values/producer-dev.yaml }
-          - { name: kafka-consumer,  dir: ., dockerfile: Dockerfile.consumer,  repo: kafka-consumer,  values: kafka-helm/values/consumer-dev.yaml }
-          - { name: kafka-dashboard, dir: ., dockerfile: Dockerfile.dashboard, repo: kafka-dashboard, values: kafka-helm/values/dashboard-dev.yaml }
+          - name: kafka-producer
+            dir: .
+            dockerfile: Dockerfile.producer
+            repo: kafka-producer
+            values: kafka-helm/values/producer-dev.yaml
+          - name: kafka-consumer
+            dir: .
+            dockerfile: Dockerfile.consumer
+            repo: kafka-consumer
+            values: kafka-helm/values/consumer-dev.yaml
+          - name: kafka-dashboard
+            dir: .
+            dockerfile: Dockerfile.dashboard
+            repo: kafka-dashboard
+            values: kafka-helm/values/dashboard-dev.yaml
 
     steps:
       - uses: actions/checkout@v4
@@ -74,8 +86,8 @@ jobs:
           REPO_PATH: ${{ steps.repo.outputs.name }}
           SHORT_SHA: ${{ steps.short.outputs.sha7 }}
         run: |
-          yq -i '.image.repository = env(ECR_REGISTRY) + "/" + env(REPO_PATH)' ${{ matrix.app.values }}
-          yq -i '.image.tag = env(SHORT_SHA)' ${{ matrix.app.values }}
+          yq -y -i '.image.repository = env(ECR_REGISTRY) + "/" + env(REPO_PATH)' ${{ matrix.app.values }}
+          yq -y -i '.image.tag = env(SHORT_SHA)' ${{ matrix.app.values }}
 
       - name: Commit Helm values bump
         run: |

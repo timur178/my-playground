@@ -40,6 +40,8 @@ resource "aws_secretsmanager_secret_version" "db" {
     username = var.db_username
     password = random_password.db.result
     dbname   = var.db_name
+    host     = aws_db_instance.pg.address
+    port     = aws_db_instance.pg.port
   })
 }
 
