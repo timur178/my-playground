@@ -13,7 +13,6 @@ on:
 env:
   ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
   ECR_REPO_PREFIX: ${{ vars.ECR_REPO_PREFIX }}
-  # ECR_REPO_PREFIX: ${{ vars.TEAM }}/${{ vars.ENVIRONMENT_STAGE }}
 
 jobs:
   docker-build:

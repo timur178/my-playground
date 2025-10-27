@@ -3,6 +3,11 @@ name: bootstrap-argocd
 
 on:
   workflow_dispatch: {}
+  push:
+    branches: [ feature/kafka-dev ]
+    paths:
+      - ".github/workflows/bootstrap-argocd.yaml"
+      - "kafka-gitops/**"
 
 permissions:
   contents: read
@@ -18,6 +23,7 @@ env:
   TEAM:                    ${{ vars.TEAM }}
   ENVIRONMENT_STAGE:       ${{ vars.ENVIRONMENT_STAGE }}
   AWS_ACCOUNT_ID:          ${{ vars.AWS_ACCOUNT_ID }}
+  ECR_REPO_PREFIX:         ${{ vars.ECR_REPO_PREFIX }}
 
 jobs:
   bootstrap:
