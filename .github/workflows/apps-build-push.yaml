@@ -86,8 +86,10 @@ jobs:
           REPO_PATH: ${{ steps.repo.outputs.name }}
           SHORT_SHA: ${{ steps.short.outputs.sha7 }}
         run: |
-          yq -y -i '.image.repository = env(ECR_REGISTRY) + "/" + env(REPO_PATH)' ${{ matrix.app.values }}
-          yq -y -i '.image.tag = env(SHORT_SHA)' ${{ matrix.app.values }}
+          # python yq (jq) syntax: env.VAR
+          yq -y -i '.image.repository = (env.ECR_REGISTRY + "/" + env.REPO_PATH)'  ${{ matrix.app.values }}
+          yq -y -i '.image.tag        =  env.SHORT_SHA'                            ${{ matrix.app.values }}
+
 
       - name: Commit Helm values bump
         run: |
