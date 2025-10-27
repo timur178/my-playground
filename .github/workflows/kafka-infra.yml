@@ -1,4 +1,4 @@
-name: Terraform Deploy
+name: kafka-infra
 on:
   push:
     branches: ["feature/**", "staging", "main"]

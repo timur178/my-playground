@@ -1,6 +1,6 @@
 image:
-  repository: ${ECR_REGISTRY}/kafka-producer   # ECR repo name
-  tag: ${IMAGE_TAG}                            # e.g., the commit SHA
+  repository: ${ECR_REGISTRY}/kafka-producer
+  tag: ${IMAGE_TAG}                           
 
 service:
   containerPort: 5000

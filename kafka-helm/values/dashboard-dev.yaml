@@ -19,6 +19,6 @@ db:
 ingress:
   enabled: true
   className: nginx
-  host: kafka-dashboard-${TEAM}-${ENVIRONMENT_STAGE}.${TEAM_DOMAIN}  # dev hostname
+  host: kafka-dashboard-${TEAM}-${ENVIRONMENT_STAGE}.${TEAM_DOMAIN}
   tlsSecret: ""   # <- leave empty to avoid a tls block; TLS is at NLB via ACM
   # tlsSecret: kafka-dashboard-tls    # (Optional) kafka-gitops/05-ingress/dashboard-ingress.yaml

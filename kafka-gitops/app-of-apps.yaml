@@ -14,7 +14,7 @@ spec:
   source:
     repoURL: https://github.com/timur178/my-playground.git
     targetRevision: feature/kafka-dev
-    path: kafka-gitops
+    path: kafka-gitops/rendered/dev     # <— not the raw folder anymore
     directory:
       recurse: true
   syncPolicy:
