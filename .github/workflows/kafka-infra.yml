@@ -55,7 +55,8 @@ jobs:
             -var 'eks_oidc_provider_url=${{ vars.EKS_OIDC_PROVIDER_URL }}' \
             -var 'ecr_repo_names=${{ vars.ECR_REPO_NAMES_JSON }}' \
             -var 'ecr_repo_prefix=${{ vars.TEAM }}/${{ vars.ENVIRONMENT_STAGE }}' \
-            -var 'team_domain=${{ vars.TEAM_DOMAIN }}'
+            -var 'team_domain=${{ vars.TEAM_DOMAIN }}' \
+            -var 'github_actions_role_arn=${{ vars.AWS_OIDC_ROLE_ARN }}'
       
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
