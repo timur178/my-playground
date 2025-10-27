@@ -1,6 +1,7 @@
 image:
-  repository: 383585068161.dkr.ecr.us-east-1.amazonaws.com/25a-ubuntu/dev/kafka-consumer
-  tag: 08df2e2
+  repository: ${ECR_REGISTRY}/kafka-consumer
+  tag: ${IMAGE_TAG}
+
 kafka:
   bootstrap: medtech-kafka-bootstrap.kafka.svc.cluster.local:9092
   topic: sensor-data
@@ -10,6 +11,7 @@ kafka:
     user: app
     passwordSecretName: app
     passwordSecretKey: password
+
 db:
   enabled: true
   secretName: postgres-credentials
