@@ -13,6 +13,7 @@ provider "aws" {
     tags = {
       Team        = var.team
       Environment = var.environment
+      Project     = var.project
     }
   }
 }

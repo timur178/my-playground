@@ -44,7 +44,7 @@ resource "aws_ecr_lifecycle_policy" "lc" {
           tagStatus     = "tagged",
           countType     = "imageCountMoreThan",
           countNumber   = 5,
-          tagPrefixList = [""]
+          tagPrefixList = ["*"]
         }
       }
     ]
