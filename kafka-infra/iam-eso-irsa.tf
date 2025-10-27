@@ -1,17 +1,23 @@
 data "aws_iam_policy_document" "eso_trust" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [var.eks_oidc_provider_arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(var.eks_oidc_provider_url, "https://", "")}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
     condition {
       test     = "StringEquals"
       variable = "${replace(var.eks_oidc_provider_url, "https://", "")}:sub"
       values   = ["system:serviceaccount:kafka:external-secrets"]
     }
-    principals {
-      type        = "Federated"
-      identifiers = [var.eks_oidc_provider_arn]
-    }
   }
 }
+
 
 resource "aws_iam_role" "eso" {
   name               = "kafka-eso-irsa-${var.team}-${var.environment}"
@@ -20,8 +26,11 @@ resource "aws_iam_role" "eso" {
 
 data "aws_iam_policy_document" "eso" {
   statement {
-    actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
     resources = [aws_secretsmanager_secret.db.arn]
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret"
+    ]
   }
 }
 

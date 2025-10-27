@@ -1,3 +1,4 @@
+# .github/workflows/bootstrap-argocd.yaml
 name: bootstrap-argocd
 
 on:
@@ -13,8 +14,10 @@ env:
   EKS_CLUSTER_NAME:        ${{ vars.EKS_CLUSTER_NAME }}
   GITOPS_REPO_URL:         ${{ vars.GITOPS_REPO_URL }}        
   GITOPS_TARGET_REVISION:  ${{ vars.GITOPS_TARGET_REVISION }} 
-  # Optional: provide to VERIFY ACM on the NLB (no changes made)
   ACM_CERT_ARN:            ${{ vars.ACM_CERT_ARN }}
+  TEAM:                    ${{ vars.TEAM }}
+  ENVIRONMENT_STAGE:       ${{ vars.ENVIRONMENT_STAGE }}
+  AWS_ACCOUNT_ID:          ${{ vars.AWS_ACCOUNT_ID }}
 
 jobs:
   bootstrap:
@@ -46,9 +49,62 @@ jobs:
           kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=5m
           kubectl -n argocd rollout status deploy/argocd-application-controller --timeout=5m
 
-      # --- AppProject (from repo) ---
+      # --- Apply AppProject (kafka) ---
       - name: Apply AppProject (kafka)
         run: kubectl -n argocd apply -f kafka-gitops/app-project.yaml
+
+      # --- Apply Argo CD accounts and RBAC ---
+      - name: Apply Argo CD accounts & RBAC
+        run: kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
+
+      - name: Restart argocd-server to reload RBAC
+        run: |
+          kubectl -n argocd rollout restart deploy/argocd-server
+          kubectl -n argocd rollout status  deploy/argocd-server --timeout=3m
+
+      # --- Generate API token for image-updater and create Secret ---
+      - name: Mint token and create Secret for Image Updater
+        id: token
+        run: |
+          set -euo pipefail
+          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+
+          ADMIN_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
+
+          kubectl -n argocd port-forward svc/argocd-server 8080:443 >/tmp/pf.log 2>&1 &
+          PF_PID=$!
+          sleep 5
+
+          argocd login localhost:8080 --grpc-web --plaintext --username admin --password "$ADMIN_PWD" --skip-test-tls
+          TOKEN=$(argocd account generate-token --account image-updater)
+
+          kill $PF_PID || true
+
+          kubectl -n argocd create secret generic argocd-image-updater-secret \
+            --from-literal=argocd.token="$TOKEN" --dry-run=client -o yaml | kubectl apply -f -
+
+      # --- Resolve IRSA role ARN for Image Updater ---
+      - name: Resolve IRSA role ARN for Image Updater
+        id: irsa
+        run: |
+          if [ -n "${{ vars.IMGUPD_IRSA_ROLE_ARN }}" ]; then
+            echo "arn=${{ vars.IMGUPD_IRSA_ROLE_ARN }}" >> "$GITHUB_OUTPUT"
+          else
+            NAME="argocd-image-updater-${{ vars.TEAM }}-${{ vars.ENVIRONMENT_STAGE }}"
+            ARN=$(aws iam get-role --role-name "$NAME" --query 'Role.Arn' --output text || true)
+            test -n "$ARN" || { echo "::error::IMGUPD_IRSA_ROLE_ARN not set and role $NAME not found"; exit 1; }
+            echo "arn=$ARN" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --- Deploy Argo CD Image Updater ---
+      - name: Deploy Argo CD Image Updater
+        env:
+          IMGUPD_IRSA_ROLE_ARN: ${{ steps.irsa.outputs.arn }}
+          AWS_ACCOUNT_ID:       ${{ vars.AWS_ACCOUNT_ID }}
+        run: |
+          envsubst < kafka-gitops/01-operators/argocd-image-updater.yaml | kubectl apply -f -
+          kubectl -n argocd rollout status deploy/argocd-image-updater --timeout=3m
 
       # --- Root Application (use the file; fill vars with envsubst) ---
       - name: Apply root Application (kafka-bootstrap)
@@ -57,7 +113,7 @@ jobs:
           envsubst < kafka-gitops/app-of-apps.yaml | kubectl apply -f -
           kubectl -n argocd get application kafka-bootstrap
 
-      # --- VERIFY ONLY: ACM is attached to nginx NLB (if ARN provided) ---
+      # --- Verify ACM is attached to nginx NLB (if ARN provided) ---
       - name: Verify ACM is attached to nginx NLB
         if: env.ACM_CERT_ARN != ''
         run: |

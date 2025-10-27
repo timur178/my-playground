@@ -1,3 +1,4 @@
+# .github/workflows/apps-build-push.yaml
 name: apps-build-push
 on:
   push:
@@ -11,13 +12,14 @@ on:
 
 env:
   ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
-  ECR_REPO_PREFIX: ${{ vars.TEAM }}/${{ vars.ENVIRONMENT_STAGE }}
+  ECR_REPO_PREFIX: ${{ vars.ECR_REPO_PREFIX }}
+  # ECR_REPO_PREFIX: ${{ vars.TEAM }}/${{ vars.ENVIRONMENT_STAGE }}
 
 jobs:
   docker-build:
     environment: ${{ (github.ref == 'refs/heads/main' && 'production') || (github.ref == 'refs/heads/staging' && 'staging') || 'dev' }}
     runs-on: ubuntu-latest
-    permissions: { id-token: write, contents: write }
+    permissions: { id-token: write, contents: read }
     strategy:
       matrix:
         app:
@@ -39,8 +41,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Configure AWS (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -76,44 +76,4 @@ jobs:
           tags: |
             ${{ env.ECR_REGISTRY }}/${{ steps.repo.outputs.name }}:${{ steps.short.outputs.sha7 }}
             ${{ env.ECR_REGISTRY }}/${{ steps.repo.outputs.name }}:latest
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.repository }}
 
-      - name: Install mikefarah yq
-        run: |
-          YQ_VER=v4.44.3
-          curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VER}/yq_linux_amd64" -o /usr/local/bin/yq
-          chmod +x /usr/local/bin/yq
-          yq --version
-
-      - name: Bump image repo+tag in Helm values
-        env:
-          REPO_PATH: ${{ steps.repo.outputs.name }}
-          SHORT_SHA: ${{ steps.short.outputs.sha7 }}
-        run: |
-          yq -i ".image.repository = \"${ECR_REGISTRY}/${REPO_PATH}\"" ${{ matrix.app.values }}
-          yq -i ".image.tag        = \"${SHORT_SHA}\""                 ${{ matrix.app.values }}
-
-
-      - name: Prepare git
-        run: |
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor }}@users.noreply.github.com"
-          git checkout "${{ github.ref_name }}"
-
-      - name: Commit Helm values bump (rebase & retry)
-        env:
-          BRANCH: ${{ github.ref_name }}
-        run: |
-          git add ${{ matrix.app.values }}
-          git commit -m "ci: bump ${{ matrix.app.name }} image to ${{ steps.short.outputs.sha7 }}" || exit 0
-          for attempt in 1 2 3 4 5; do
-            git pull --rebase origin "$BRANCH" || true
-            if git push origin "HEAD:$BRANCH"; then
-              echo "Pushed on attempt $attempt"
-              break
-            fi
-            echo "Push failed, retrying ($attempt/5)…"
-            sleep $((attempt*2))
-          done
