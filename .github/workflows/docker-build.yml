@@ -1,5 +1,4 @@
-# .github/workflows/apps-build-push.yaml
-name: apps-build-push
+name: Build & push Docker images
 on:
   push:
     paths:
@@ -7,7 +6,7 @@ on:
       - "consumer_api.py"
       - "dashboard.py"
       - "kafka-helm/**"
-      - ".github/workflows/apps-build-push.yaml"
+      - ".github/workflows/docker.yml"
   workflow_dispatch: {}
 
 env:
@@ -15,7 +14,7 @@ env:
   ECR_REPO_PREFIX: ${{ vars.ECR_REPO_PREFIX }}
 
 jobs:
-  docker-build:
+  docker-build-push:
     environment: ${{ (github.ref == 'refs/heads/main' && 'production') || (github.ref == 'refs/heads/staging' && 'staging') || 'dev' }}
     runs-on: ubuntu-latest
     permissions: { id-token: write, contents: read }

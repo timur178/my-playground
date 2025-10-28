@@ -1,9 +1,9 @@
-name: render-and-validate-gitops
+name: Gitops Validate and Render
 on:
   push:
     paths:
       - "kafka-gitops/**"
-      - ".github/workflows/gitops-validate.yaml"
+      - ".github/workflows/gitops-validate.yml"
   workflow_dispatch: {}
 
 env:

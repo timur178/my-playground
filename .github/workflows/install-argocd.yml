@@ -1,11 +1,11 @@
-name: bootstrap-argocd
+name: Install ArgoCD
 
 on:
   workflow_dispatch: {}
   push:
     branches: [ feature/kafka-dev ]
     paths:
-      - ".github/workflows/bootstrap-argocd.yaml"
+      - ".github/workflows/argocd.yml"
 
 permissions:
   contents: read
@@ -16,7 +16,7 @@ defaults:
     shell: bash
 
 concurrency:
-  group: bootstrap-argocd-${{ github.ref }}
+  group: argocd-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -25,7 +25,7 @@ env:
   EKS_CLUSTER_NAME:  ${{ vars.EKS_CLUSTER_NAME }}
 
 jobs:
-  bootstrap:
+  argocd-install:
     runs-on: ubuntu-latest
     environment: dev
 
