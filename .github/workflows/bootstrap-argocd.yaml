@@ -6,33 +6,24 @@ on:
     branches: [ feature/kafka-dev ]
     paths:
       - ".github/workflows/bootstrap-argocd.yaml"
-      - "kafka-gitops/**"
+      - "kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml"
 
 permissions:
   contents: read
   id-token: write
 
-# Make bash the default everywhere
 defaults:
   run:
     shell: bash
 
-# Avoid overlapping bootstraps on the same branch
 concurrency:
   group: bootstrap-argocd-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  AWS_REGION:              ${{ vars.AWS_REGION }}
-  AWS_OIDC_ROLE_ARN:       ${{ vars.AWS_OIDC_ROLE_ARN }}
-  EKS_CLUSTER_NAME:        ${{ vars.EKS_CLUSTER_NAME }}
-  GITOPS_REPO_URL:         ${{ vars.GITOPS_REPO_URL }}
-  GITOPS_TARGET_REVISION:  ${{ vars.GITOPS_TARGET_REVISION }}
-  ACM_CERT_ARN:            ${{ vars.ACM_CERT_ARN }}
-  TEAM:                    ${{ vars.TEAM }}
-  ENVIRONMENT_STAGE:       ${{ vars.ENVIRONMENT_STAGE }}
-  AWS_ACCOUNT_ID:          ${{ vars.AWS_ACCOUNT_ID }}
-  ECR_REPO_PREFIX:         ${{ vars.ECR_REPO_PREFIX }}
+  AWS_REGION:        ${{ vars.AWS_REGION }}
+  AWS_OIDC_ROLE_ARN: ${{ vars.AWS_OIDC_ROLE_ARN }}
+  EKS_CLUSTER_NAME:  ${{ vars.EKS_CLUSTER_NAME }}
 
 jobs:
   bootstrap:
@@ -51,151 +42,38 @@ jobs:
       - name: Set kubeconfig to EKS
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
 
-      # --- Argo CD install/upgrade (idempotent) ---
       - name: Ensure argocd namespace
         run: kubectl get ns argocd >/dev/null 2>&1 || kubectl create ns argocd
 
       - name: Install / upgrade Argo CD
-        run: kubectl -n argocd apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        run: kubectl -n argocd create -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-      # >>> IMPORTANT: seed argocd-cm BEFORE waiting for server <<<
-      - name: Seed Argo CD base config (ensure argocd-cm exists)
+      # Seed minimal config so argocd-server can boot (contains argocd-cm / argocd-rbac-cm)
+      - name: Seed Argo CD base config
         run: |
           set -euo pipefail
-          # This file must define argocd-cm and argocd-rbac-cm (minimal is fine).
           kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
-          # Quick sanity
           kubectl -n argocd get cm argocd-cm
 
       - name: Wait for Argo CD to be ready
         run: |
           set -euo pipefail
-
           kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
           kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=10m
-
-          # Controller is a StatefulSet in newer versions; fall back to Deployment if older
           if kubectl -n argocd get statefulset argocd-application-controller >/dev/null 2>&1; then
             kubectl -n argocd rollout status statefulset/argocd-application-controller --timeout=10m
           else
             kubectl -n argocd rollout status deploy/argocd-application-controller --timeout=10m
           fi
-
           kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
             --for=condition=Ready --timeout=10m
 
-      - name: Debug Argo CD server if rollout failed
+      - name: Debug Argo CD (only if failed)
         if: failure()
         run: |
           set -x
+          kubectl -n argocd get all
           kubectl -n argocd get pods -o wide
           kubectl -n argocd describe deploy/argocd-server || true
           POD=$(kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-server -o jsonpath='{.items[0].metadata.name}' || true)
           kubectl -n argocd logs "$POD" --tail=200 || true
-
-      # --- AppProject (kafka) ---
-      - name: Apply AppProject (kafka)
-        run: kubectl -n argocd apply -f kafka-gitops/app-project.yaml
-
-      # --- Validate settings before any forced rollout ---
-      - name: Validate Argo CD settings
-        run: |
-          # Use the repo-server container; the argocd binary is available there.
-          kubectl -n argocd exec deploy/argocd-repo-server -- argocd admin settings validate
-
-      # --- Apply RBAC and roll only if changed (idempotent) ---
-      - name: Apply Argo CD accounts & RBAC (roll server if changed)
-        run: |
-          set -euo pipefail
-
-          # Apply your RBAC/accounts manifests
-          kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
-
-          # Compute a hash of the relevant ConfigMaps
-          HASH="$(
-            { kubectl -n argocd get cm argocd-rbac-cm -o json 2>/dev/null || true;
-              kubectl -n argocd get cm argocd-cm     -o json 2>/dev/null || true; } \
-            | sha1sum | awk '{print $1}'
-          )"
-
-          # Patch the Deployment template with the hash; triggers rollout only when content changes
-          kubectl -n argocd patch deploy argocd-server \
-            --type merge \
-            -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"rbac-hash\":\"$HASH\"}}}}}"
-
-          # Wait for the rollout and readiness
-          kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
-          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
-            --for=condition=Ready --timeout=10m
-
-      # --- Mint API token & create Secret for Image Updater ---
-      - name: Mint token and create Secret for Image Updater
-        run: |
-          set -euo pipefail
-          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          chmod +x /usr/local/bin/argocd
-
-          ADMIN_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
-
-          # Use HTTP port to avoid TLS hassle in CI
-          kubectl -n argocd port-forward svc/argocd-server 8080:80 >/tmp/pf.log 2>&1 &
-          PF_PID=$!
-          trap 'kill $PF_PID || true' EXIT
-          sleep 6
-
-          argocd login localhost:8080 --grpc-web --username admin --password "$ADMIN_PWD" --insecure
-          TOKEN=$(argocd account generate-token --account image-updater)
-
-          kubectl -n argocd create secret generic argocd-image-updater-secret \
-            --from-literal=argocd.token="$TOKEN" \
-            --dry-run=client -o yaml | kubectl apply -f -
-
-      # --- Resolve IRSA role ARN for Image Updater ---
-      - name: Resolve IRSA role ARN for Image Updater
-        id: irsa
-        run: |
-          if [ -n "${{ vars.IMGUPD_IRSA_ROLE_ARN }}" ]; then
-            echo "arn=${{ vars.IMGUPD_IRSA_ROLE_ARN }}" >> "$GITHUB_OUTPUT"
-          else
-            NAME="argocd-image-updater-${{ vars.TEAM }}-${{ vars.ENVIRONMENT_STAGE }}"
-            ARN=$(aws iam get-role --role-name "$NAME" --query 'Role.Arn' --output text || true)
-            test -n "$ARN" || { echo "::error::IMGUPD_IRSA_ROLE_ARN not set and role $NAME not found"; exit 1; }
-            echo "arn=$ARN" >> "$GITHUB_OUTPUT"
-          fi
-
-      # --- Deploy Argo CD Image Updater ---
-      - name: Deploy Argo CD Image Updater
-        env:
-          IMGUPD_IRSA_ROLE_ARN: ${{ steps.irsa.outputs.arn }}
-          AWS_ACCOUNT_ID:       ${{ vars.AWS_ACCOUNT_ID }}
-        run: |
-          envsubst < kafka-gitops/01-operators/argocd-image-updater.yaml | kubectl apply -f -
-          kubectl -n argocd rollout status deploy/argocd-image-updater --timeout=5m
-          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-image-updater \
-            --for=condition=Ready --timeout=5m
-
-      # --- Root Application (use the file; fill vars with envsubst) ---
-      - name: Apply root Application (kafka-bootstrap)
-        run: |
-          set -euo pipefail
-          envsubst < kafka-gitops/app-of-apps.yaml | kubectl apply -f -
-          kubectl -n argocd get application kafka-bootstrap
-
-      # --- Verify ACM is attached to nginx NLB (if ARN provided) ---
-      - name: Verify ACM is attached to nginx NLB
-        if: env.ACM_CERT_ARN != ''
-        run: |
-          set -euo pipefail
-          NS=ingress-nginx
-          SVC=ingress-nginx-controller
-          SVC_ARN=$(kubectl -n "$NS" get svc "$SVC" -o jsonpath='{.metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-ssl-cert}')
-          test -n "${SVC_ARN:-}" || { echo "::error:: Service missing ssl-cert annotation"; exit 1; }
-          [ "$SVC_ARN" = "$ACM_CERT_ARN" ] || { echo "::error:: Annotation ($SVC_ARN) != expected ($ACM_CERT_ARN)"; exit 1; }
-
-          LB_DNS=$(kubectl -n "$NS" get svc "$SVC" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-          test -n "${LB_DNS:-}" || { echo "::error:: LB hostname not ready"; exit 1; }
-          LB_ARN=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
-            --query "LoadBalancers[?DNSName=='$LB_DNS'].LoadBalancerArn" --output text)
-          LISTENER_CERTS=$(aws elbv2 describe-listeners --region "$AWS_REGION" \
-            --load-balancer-arn "$LB_ARN" --query "Listeners[?Port==\`443\`].Certificates[].CertificateArn" --output text)
-          echo "$LISTENER_CERTS" | grep -q "$ACM_CERT_ARN" || { echo "::error:: NLB 443 does not reference ACM_CERT_ARN"; exit 1; }
