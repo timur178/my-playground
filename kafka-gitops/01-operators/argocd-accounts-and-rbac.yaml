@@ -1,12 +1,15 @@
 # kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: argocd-cm
   namespace: argocd
 data:
-  # enable dedicated account that can login + API keys
-  accounts.image-updater: apiKey, login
+  # local service account for image-updater token minting
+  accounts.image-updater: apiKey
+  accounts.image-updater.enabled: "true"
+
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -14,7 +17,12 @@ metadata:
   name: argocd-rbac-cm
   namespace: argocd
 data:
+  policy.default: role:readonly
   policy.csv: |
     p, role:image-updater, applications, get, *, allow
+    p, role:image-updater, applications, sync, *, allow
     p, role:image-updater, applications, update, *, allow
+    p, role:image-updater, repositories, get, *, allow
+    p, role:image-updater, clusters, get, *, allow
+    p, role:image-updater, projects, get, *, allow
     g, image-updater, role:image-updater

@@ -3,7 +3,12 @@ name: bootstrap-argocd
 on:
   workflow_dispatch: {}
   push:
-    branches: [ feature/kafka-dev ]
+    branches: ["feature/**", "staging", "main"]
+    paths:
+      - ".github/workflows/bootstrap-argocd.yaml"
+      - "kafka-gitops/**"
+  pull_request:
+    branches: ["staging", "main"]
     paths:
       - ".github/workflows/bootstrap-argocd.yaml"
       - "kafka-gitops/**"
@@ -26,7 +31,7 @@ env:
 
 jobs:
   bootstrap:
-    environment: dev
+    environment: ${{ (github.ref == 'refs/heads/main' && 'production') || (github.ref == 'refs/heads/staging' && 'staging') || 'dev' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -85,20 +90,28 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Ensure CM/RBAC exist
           kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
 
+          # Validate settings BEFORE forcing a rollout
+          if ! kubectl -n argocd exec deploy/argocd-repo-server -- argocd admin settings validate; then
+            echo "::error:: Argo CD settings invalid (argocd-cm / rbac-cm). Fix and retry."
+            exit 1
+          fi
+
+          # Hash CM content to roll only on change
           HASH="$(
             { kubectl -n argocd get cm argocd-rbac-cm -o json 2>/dev/null || true;
               kubectl -n argocd get cm argocd-cm     -o json 2>/dev/null || true; } \
             | sha1sum | awk '{print $1}'
           )"
 
-          kubectl -n argocd patch deploy argocd-server --type merge -p \
-            "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"rbac-hash\":\"$HASH\"}}}}}"
+          kubectl -n argocd patch deploy argocd-server \
+            --type merge \
+            -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"rbac-hash\":\"$HASH\"}}}}}"
 
           kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
           kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server --for=condition=Ready --timeout=10m
-
 
       # --- Generate API token for image-updater and create Secret ---
       - name: Mint token and create Secret for Image Updater
