@@ -77,3 +77,19 @@ jobs:
           kubectl -n argocd describe deploy/argocd-server || true
           POD=$(kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-server -o jsonpath='{.items[0].metadata.name}' || true)
           kubectl -n argocd logs "$POD" --tail=200 || true
+
+      # --- Show creation times for traceability ---
+      - name: Show Argo CD creation timestamps
+        run: |
+          echo "===== Namespace ====="
+          kubectl get ns argocd -o jsonpath='{.metadata.creationTimestamp}'; echo
+          echo "===== Deployments ====="
+          kubectl -n argocd get deploy -o custom-columns=NAME:.metadata.name,CREATED:.metadata.creationTimestamp
+          echo "===== Pods ====="
+          kubectl -n argocd get pods -o custom-columns=NAME:.metadata.name,CREATED:.metadata.creationTimestamp
+          echo "===== Services ====="
+          kubectl -n argocd get svc -o custom-columns=NAME:.metadata.name,CREATED:.metadata.creationTimestamp
+          echo "===== ConfigMaps ====="
+          kubectl -n argocd get cm -o custom-columns=NAME:.metadata.name,CREATED:.metadata.creationTimestamp
+      
+      
