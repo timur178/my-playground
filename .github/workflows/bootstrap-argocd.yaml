@@ -81,28 +81,25 @@ jobs:
 
       # --- Apply RBAC and roll only if changed (robust, idempotent) ---
       - name: Apply Argo CD accounts & RBAC (roll server if changed)
+        shell: sh
         run: |
           set -euo pipefail
 
-          # Apply your RBAC/accounts manifests
           kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
 
-          # Compute a hash of the relevant ConfigMaps
-          HASH=$(
-            kubectl -n argocd get cm argocd-rbac-cm -o json 2>/dev/null || true
-            kubectl -n argocd get cm argocd-cm     -o json 2>/dev/null || true
-          | sha1sum | awk '{print $1}'
-          )
+          HASH="$(
+            { kubectl -n argocd get cm argocd-rbac-cm -o json 2>/dev/null || true;
+              kubectl -n argocd get cm argocd-cm -o json 2>/dev/null || true; } \
+            | sha1sum | awk '{print $1}'
+          )"
 
-          # Patch the Deployment template with the hash; triggers rollout only when content changes
           kubectl -n argocd patch deploy argocd-server \
             --type merge \
-            -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"rbac-hash\":\"${HASH}\"}}}}}"
+            -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"rbac-hash\":\"$HASH\"}}}}}"
 
-          # Wait generously for the rollout and pod readiness
           kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
-          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
-            --for=condition=Ready --timeout=10m
+          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server --for=condition=Ready --timeout=10m
+
 
       # --- Generate API token for image-updater and create Secret ---
       - name: Mint token and create Secret for Image Updater
