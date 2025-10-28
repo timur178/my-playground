@@ -1,4 +1,3 @@
-# .github/workflows/bootstrap-argocd.yaml
 name: bootstrap-argocd
 
 on:
@@ -17,8 +16,8 @@ env:
   AWS_REGION:              ${{ vars.AWS_REGION }}
   AWS_OIDC_ROLE_ARN:       ${{ vars.AWS_OIDC_ROLE_ARN }}
   EKS_CLUSTER_NAME:        ${{ vars.EKS_CLUSTER_NAME }}
-  GITOPS_REPO_URL:         ${{ vars.GITOPS_REPO_URL }}        
-  GITOPS_TARGET_REVISION:  ${{ vars.GITOPS_TARGET_REVISION }} 
+  GITOPS_REPO_URL:         ${{ vars.GITOPS_REPO_URL }}
+  GITOPS_TARGET_REVISION:  ${{ vars.GITOPS_TARGET_REVISION }}
   ACM_CERT_ARN:            ${{ vars.ACM_CERT_ARN }}
   TEAM:                    ${{ vars.TEAM }}
   ENVIRONMENT_STAGE:       ${{ vars.ENVIRONMENT_STAGE }}
@@ -52,43 +51,20 @@ jobs:
       - name: Wait for Argo CD to be ready
         run: |
           set -euo pipefail
-          kubectl -n argocd rollout status deploy/argocd-server --timeout=5m
-          kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=5m
+
+          kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
+          kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=10m
 
           # Controller is a StatefulSet in newer versions; fall back to Deployment if older
           if kubectl -n argocd get statefulset argocd-application-controller >/dev/null 2>&1; then
-            kubectl -n argocd rollout status statefulset/argocd-application-controller --timeout=5m
+            kubectl -n argocd rollout status statefulset/argocd-application-controller --timeout=10m
           else
-            kubectl -n argocd rollout status deploy/argocd-application-controller --timeout=5m
+            kubectl -n argocd rollout status deploy/argocd-application-controller --timeout=10m
           fi
 
-      # --- Apply AppProject (kafka) ---
-      - name: Apply AppProject (kafka)
-        run: kubectl -n argocd apply -f kafka-gitops/app-project.yaml
-
-      # --- Apply RBAC and roll only if changed (robust, idempotent) ---
-      - name: Apply Argo CD accounts & RBAC (roll server if changed)
-        id: rbac
-        run: |
-          set -euo pipefail
-
-          # Apply your RBAC/accounts manifests
-          kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
-
-          # Compute a hash of the config that argocd-server cares about
-          HASH=$(
-            kubectl -n argocd get cm argocd-rbac-cm -o json 2>/dev/null || true
-            kubectl -n argocd get cm argocd-cm     -o json 2>/dev/null || true
-          | sha1sum | awk '{print $1}'
-          )
-
-          # Patch the Deployment template with the hash; this only triggers a rollout when content changes
-          kubectl -n argocd patch deploy argocd-server \
-            --type merge \
-            -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"rbac-hash\":\"${HASH}\"}}}}}"
-
-          # Give it plenty of time; pulling images + TLS init can be slow
-          kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
+          # Final readiness check on server pod(s)
+          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
+            --for=condition=Ready --timeout=10m
 
       - name: Debug Argo CD server if rollout failed
         if: failure()
@@ -99,9 +75,37 @@ jobs:
           POD=$(kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-server -o jsonpath='{.items[0].metadata.name}' || true)
           kubectl -n argocd logs "$POD" --tail=200 || true
 
+      # --- Apply AppProject (kafka) ---
+      - name: Apply AppProject (kafka)
+        run: kubectl -n argocd apply -f kafka-gitops/app-project.yaml
+
+      # --- Apply RBAC and roll only if changed (robust, idempotent) ---
+      - name: Apply Argo CD accounts & RBAC (roll server if changed)
+        run: |
+          set -euo pipefail
+
+          # Apply your RBAC/accounts manifests
+          kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
+
+          # Compute a hash of the relevant ConfigMaps
+          HASH=$(
+            kubectl -n argocd get cm argocd-rbac-cm -o json 2>/dev/null || true
+            kubectl -n argocd get cm argocd-cm     -o json 2>/dev/null || true
+          | sha1sum | awk '{print $1}'
+          )
+
+          # Patch the Deployment template with the hash; triggers rollout only when content changes
+          kubectl -n argocd patch deploy argocd-server \
+            --type merge \
+            -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"rbac-hash\":\"${HASH}\"}}}}}"
+
+          # Wait generously for the rollout and pod readiness
+          kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
+          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
+            --for=condition=Ready --timeout=10m
+
       # --- Generate API token for image-updater and create Secret ---
       - name: Mint token and create Secret for Image Updater
-        id: token
         run: |
           set -euo pipefail
           curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
@@ -111,7 +115,8 @@ jobs:
 
           kubectl -n argocd port-forward svc/argocd-server 8080:443 >/tmp/pf.log 2>&1 &
           PF_PID=$!
-          sleep 5
+          # give the port-forward a moment to bind
+          sleep 6
 
           argocd login localhost:8080 --grpc-web --plaintext --username admin --password "$ADMIN_PWD" --skip-test-tls
           TOKEN=$(argocd account generate-token --account image-updater)
@@ -119,7 +124,8 @@ jobs:
           kill $PF_PID || true
 
           kubectl -n argocd create secret generic argocd-image-updater-secret \
-            --from-literal=argocd.token="$TOKEN" --dry-run=client -o yaml | kubectl apply -f -
+            --from-literal=argocd.token="$TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
 
       # --- Resolve IRSA role ARN for Image Updater ---
       - name: Resolve IRSA role ARN for Image Updater
@@ -141,7 +147,9 @@ jobs:
           AWS_ACCOUNT_ID:       ${{ vars.AWS_ACCOUNT_ID }}
         run: |
           envsubst < kafka-gitops/01-operators/argocd-image-updater.yaml | kubectl apply -f -
-          kubectl -n argocd rollout status deploy/argocd-image-updater --timeout=3m
+          kubectl -n argocd rollout status deploy/argocd-image-updater --timeout=5m
+          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-image-updater \
+            --for=condition=Ready --timeout=5m
 
       # --- Root Application (use the file; fill vars with envsubst) ---
       - name: Apply root Application (kafka-bootstrap)
