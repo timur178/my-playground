@@ -46,7 +46,7 @@ jobs:
         run: kubectl get ns argocd >/dev/null 2>&1 || kubectl create ns argocd
 
       - name: Install / upgrade Argo CD
-        run: kubectl -n argocd create -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        run: kubectl -n argocd apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
       # Seed minimal config so argocd-server can boot (contains argocd-cm / argocd-rbac-cm)
       - name: Seed Argo CD base config
