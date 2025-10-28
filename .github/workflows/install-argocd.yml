@@ -25,7 +25,7 @@ env:
   EKS_CLUSTER_NAME:  ${{ vars.EKS_CLUSTER_NAME }}
 
 jobs:
-  argocd-install:
+  install-argocd:
     runs-on: ubuntu-latest
     environment: dev
 
