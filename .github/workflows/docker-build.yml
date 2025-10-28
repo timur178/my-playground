@@ -66,4 +66,4 @@ jobs:
           push: true
           tags: |
             ${{ steps.img.outputs.name }}:${{ steps.short.outputs.sha7 }}
-            ${{ steps.img.outputs.name }}:latest
+            # ${{ steps.img.outputs.name }}:latest
