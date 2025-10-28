@@ -1,13 +1,14 @@
 name: Build & push Docker images
 on:
+  workflow_dispatch: {}
   push:
+    branches: [ feature/kafka-dev ]
     paths:
       - "producer.py"
       - "consumer_api.py"
       - "dashboard.py"
       - "kafka-helm/**"
-      - ".github/workflows/docker.yml"
-  workflow_dispatch: {}
+      - ".github/workflows/docker-build.yml"
 
 env:
   ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
@@ -15,7 +16,7 @@ env:
 
 jobs:
   docker-build-push:
-    environment: ${{ (github.ref == 'refs/heads/main' && 'production') || (github.ref == 'refs/heads/staging' && 'staging') || 'dev' }}
+    environment: dev
     runs-on: ubuntu-latest
     permissions: { id-token: write, contents: read }
     strategy:
@@ -66,4 +67,4 @@ jobs:
           push: true
           tags: |
             ${{ steps.img.outputs.name }}:${{ steps.short.outputs.sha7 }}
-            # ${{ steps.img.outputs.name }}:latest
+            ${{ steps.img.outputs.name }}:latest

@@ -5,7 +5,7 @@ on:
   push:
     branches: [ feature/kafka-dev ]
     paths:
-      - ".github/workflows/argocd.yml"
+      - ".github/workflows/install-argocd.yml"
 
 permissions:
   contents: read
@@ -64,7 +64,3 @@ jobs:
 
           kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
             --for=condition=Ready --timeout=10m
-
-      - name: Argo CD resources
-        run: |
-          kubectl -n argocd get all
