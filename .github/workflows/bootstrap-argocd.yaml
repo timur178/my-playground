@@ -6,7 +6,7 @@ on:
     branches: [ feature/kafka-dev ]
     paths:
       - ".github/workflows/bootstrap-argocd.yaml"
-      - "kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml"
+      - "kafka-gitops/**"
 
 permissions:
   contents: read
@@ -21,9 +21,13 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AWS_REGION:        ${{ vars.AWS_REGION }}
-  AWS_OIDC_ROLE_ARN: ${{ vars.AWS_OIDC_ROLE_ARN }}
-  EKS_CLUSTER_NAME:  ${{ vars.EKS_CLUSTER_NAME }}
+  AWS_REGION:              ${{ vars.AWS_REGION }}
+  AWS_OIDC_ROLE_ARN:       ${{ vars.AWS_OIDC_ROLE_ARN }}
+  EKS_CLUSTER_NAME:        ${{ vars.EKS_CLUSTER_NAME }}
+  GITOPS_REPO_URL:         ${{ vars.GITOPS_REPO_URL }}
+  GITOPS_TARGET_REVISION:  ${{ vars.GITOPS_TARGET_REVISION }}
+  TEAM:                    ${{ vars.TEAM }}
+  ENVIRONMENT_STAGE:       ${{ vars.ENVIRONMENT_STAGE }}
 
 jobs:
   bootstrap:
@@ -42,54 +46,63 @@ jobs:
       - name: Set kubeconfig to EKS
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
 
+      # --- Argo CD install ---
       - name: Ensure argocd namespace
         run: kubectl get ns argocd >/dev/null 2>&1 || kubectl create ns argocd
 
-      - name: Install / upgrade Argo CD
+      - name: Install / upgrade Argo CD (idempotent)
         run: kubectl -n argocd apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-      # Seed minimal config so argocd-server can boot (contains argocd-cm / argocd-rbac-cm)
+      # --- Seed core configmaps early ---
       - name: Seed Argo CD base config
         run: |
           set -euo pipefail
-          kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
-          kubectl -n argocd get cm argocd-cm
+          echo "Applying argocd base config..."
+          kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml || true
 
-      - name: Wait for Argo CD to be ready
+          # Fallback if argocd-cm missing
+          if ! kubectl -n argocd get cm argocd-cm >/dev/null 2>&1; then
+            echo "argocd-cm missing, creating minimal default"
+            kubectl -n argocd create configmap argocd-cm \
+              --from-literal=accounts.image-updater=apiKey \
+              --from-literal=accounts.image-updater.enabled=true
+          fi
+
+          kubectl -n argocd get cm
+
+      # --- Restart server to pick up config ---
+      - name: Restart Argo CD server after seeding config
         run: |
           set -euo pipefail
-          kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
-          kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=10m
+          echo "Restarting argocd-server to reload argocd-cm..."
+          kubectl -n argocd rollout restart deploy argocd-server
+          kubectl -n argocd rollout status deploy argocd-server --timeout=10m
+          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
+            --for=condition=Ready --timeout=10m
+
+      # --- Wait for all core components ---
+      - name: Wait for Argo CD components
+        run: |
+          set -euo pipefail
+          kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=10m || true
+
           if kubectl -n argocd get statefulset argocd-application-controller >/dev/null 2>&1; then
             kubectl -n argocd rollout status statefulset/argocd-application-controller --timeout=10m
           else
             kubectl -n argocd rollout status deploy/argocd-application-controller --timeout=10m
           fi
-          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
-            --for=condition=Ready --timeout=10m
 
-      - name: Debug Argo CD (only if failed)
-        if: failure()
-        run: |
-          set -x
-          kubectl -n argocd get all
           kubectl -n argocd get pods -o wide
-          kubectl -n argocd describe deploy/argocd-server || true
-          POD=$(kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-server -o jsonpath='{.items[0].metadata.name}' || true)
-          kubectl -n argocd logs "$POD" --tail=200 || true
 
-      # --- Show creation times for traceability ---
-      - name: Show Argo CD creation timestamps
+      # --- Output basic info ---
+      - name: Show install summary
         run: |
-          echo "===== Namespace ====="
+          echo "✅ Argo CD bootstrap completed successfully"
+          echo
+          echo "Namespace created at:"
           kubectl get ns argocd -o jsonpath='{.metadata.creationTimestamp}'; echo
-          echo "===== Deployments ====="
-          kubectl -n argocd get deploy -o custom-columns=NAME:.metadata.name,CREATED:.metadata.creationTimestamp
-          echo "===== Pods ====="
-          kubectl -n argocd get pods -o custom-columns=NAME:.metadata.name,CREATED:.metadata.creationTimestamp
-          echo "===== Services ====="
-          kubectl -n argocd get svc -o custom-columns=NAME:.metadata.name,CREATED:.metadata.creationTimestamp
-          echo "===== ConfigMaps ====="
-          kubectl -n argocd get cm -o custom-columns=NAME:.metadata.name,CREATED:.metadata.creationTimestamp
-      
-      
+          echo "Pods:"
+          kubectl -n argocd get pods
+          echo
+          echo "Services:"
+          kubectl -n argocd get svc
