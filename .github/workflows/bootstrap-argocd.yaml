@@ -81,7 +81,7 @@ jobs:
 
       # --- Apply RBAC and roll only if changed (robust, idempotent) ---
       - name: Apply Argo CD accounts & RBAC (roll server if changed)
-        shell: sh
+        shell: bash
         run: |
           set -euo pipefail
 
@@ -89,13 +89,12 @@ jobs:
 
           HASH="$(
             { kubectl -n argocd get cm argocd-rbac-cm -o json 2>/dev/null || true;
-              kubectl -n argocd get cm argocd-cm -o json 2>/dev/null || true; } \
+              kubectl -n argocd get cm argocd-cm     -o json 2>/dev/null || true; } \
             | sha1sum | awk '{print $1}'
           )"
 
-          kubectl -n argocd patch deploy argocd-server \
-            --type merge \
-            -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"rbac-hash\":\"$HASH\"}}}}}"
+          kubectl -n argocd patch deploy argocd-server --type merge -p \
+            "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"rbac-hash\":\"$HASH\"}}}}}"
 
           kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
           kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server --for=condition=Ready --timeout=10m
