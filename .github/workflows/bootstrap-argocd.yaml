@@ -6,7 +6,6 @@ on:
     branches: [ feature/kafka-dev ]
     paths:
       - ".github/workflows/bootstrap-argocd.yaml"
-      - "kafka-gitops/**"
 
 permissions:
   contents: read
@@ -21,18 +20,14 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AWS_REGION:              ${{ vars.AWS_REGION }}
-  AWS_OIDC_ROLE_ARN:       ${{ vars.AWS_OIDC_ROLE_ARN }}
-  EKS_CLUSTER_NAME:        ${{ vars.EKS_CLUSTER_NAME }}
-  GITOPS_REPO_URL:         ${{ vars.GITOPS_REPO_URL }}
-  GITOPS_TARGET_REVISION:  ${{ vars.GITOPS_TARGET_REVISION }}
-  TEAM:                    ${{ vars.TEAM }}
-  ENVIRONMENT_STAGE:       ${{ vars.ENVIRONMENT_STAGE }}
+  AWS_REGION:        ${{ vars.AWS_REGION }}
+  AWS_OIDC_ROLE_ARN: ${{ vars.AWS_OIDC_ROLE_ARN }}
+  EKS_CLUSTER_NAME:  ${{ vars.EKS_CLUSTER_NAME }}
 
 jobs:
   bootstrap:
-    environment: dev
     runs-on: ubuntu-latest
+    environment: dev
 
     steps:
       - uses: actions/checkout@v4
@@ -43,50 +38,22 @@ jobs:
           role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Set kubeconfig to EKS
+      - name: Set kubeconfig for EKS
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
 
-      # --- Install / Upgrade Argo CD ---
       - name: Ensure argocd namespace
-        run: kubectl get ns argocd >/dev/null 2>&1 || kubectl create ns argocd
+        run: |
+          kubectl get ns argocd >/dev/null 2>&1 || kubectl create ns argocd
 
-      - name: Install Argo CD (idempotent)
-        run: kubectl -n argocd apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+      - name: Install Argo CD
+        run: |
+          kubectl -n argocd apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-      # --- Seed core configmaps before first restart ---
-      - name: Seed Argo CD base config
+      - name: Wait for Argo CD core components
         run: |
           set -euo pipefail
-          echo "Applying argocd base configuration..."
-          kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml || true
+          echo "⏳ Waiting for Argo CD to become ready..."
 
-          if ! kubectl -n argocd get cm argocd-cm >/dev/null 2>&1; then
-            echo "Creating minimal argocd-cm..."
-            kubectl -n argocd create configmap argocd-cm \
-              --from-literal=accounts.image-updater=apiKey \
-              --from-literal=accounts.image-updater.enabled=true
-          fi
-
-          kubectl -n argocd get cm
-
-      # --- Restart components to reload configmaps ---
-      - name: Restart Argo CD components
-        run: |
-          set -euo pipefail
-          for c in server repo-server application-controller; do
-            if kubectl -n argocd get deploy argocd-$c >/dev/null 2>&1; then
-              echo "Restarting argocd-$c..."
-              kubectl -n argocd rollout restart deploy/argocd-$c
-            elif kubectl -n argocd get statefulset argocd-$c >/dev/null 2>&1; then
-              echo "Restarting argocd-$c StatefulSet..."
-              kubectl -n argocd rollout restart statefulset/argocd-$c
-            fi
-          done
-
-      # --- Wait for readiness ---
-      - name: Wait for all Argo CD components
-        run: |
-          set -euo pipefail
           kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
           kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=10m || true
 
@@ -99,10 +66,12 @@ jobs:
           kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
             --for=condition=Ready --timeout=10m
 
-      # --- Show installation summary ---
-      - name: Show install summary
+      - name: Show installation summary
         run: |
-          echo "✅ Argo CD bootstrap complete"
+          echo "✅ Argo CD installation complete!"
+          echo "--- Namespace info ---"
           kubectl get ns argocd -o jsonpath='{.metadata.creationTimestamp}'; echo
+          echo "--- Pods ---"
           kubectl -n argocd get pods -o wide
+          echo "--- Services ---"
           kubectl -n argocd get svc
