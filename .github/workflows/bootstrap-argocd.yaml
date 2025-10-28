@@ -3,12 +3,7 @@ name: bootstrap-argocd
 on:
   workflow_dispatch: {}
   push:
-    branches: ["feature/**", "staging", "main"]
-    paths:
-      - ".github/workflows/bootstrap-argocd.yaml"
-      - "kafka-gitops/**"
-  pull_request:
-    branches: ["staging", "main"]
+    branches: [ feature/kafka-dev ]
     paths:
       - ".github/workflows/bootstrap-argocd.yaml"
       - "kafka-gitops/**"
@@ -16,6 +11,16 @@ on:
 permissions:
   contents: read
   id-token: write
+
+# Make bash the default everywhere
+defaults:
+  run:
+    shell: bash
+
+# Avoid overlapping bootstraps on the same branch
+concurrency:
+  group: bootstrap-argocd-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   AWS_REGION:              ${{ vars.AWS_REGION }}
@@ -31,7 +36,7 @@ env:
 
 jobs:
   bootstrap:
-    environment: ${{ (github.ref == 'refs/heads/main' && 'production') || (github.ref == 'refs/heads/staging' && 'staging') || 'dev' }}
+    environment: dev
     runs-on: ubuntu-latest
 
     steps:
@@ -53,6 +58,15 @@ jobs:
       - name: Install / upgrade Argo CD
         run: kubectl -n argocd apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
+      # >>> IMPORTANT: seed argocd-cm BEFORE waiting for server <<<
+      - name: Seed Argo CD base config (ensure argocd-cm exists)
+        run: |
+          set -euo pipefail
+          # This file must define argocd-cm and argocd-rbac-cm (minimal is fine).
+          kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
+          # Quick sanity
+          kubectl -n argocd get cm argocd-cm
+
       - name: Wait for Argo CD to be ready
         run: |
           set -euo pipefail
@@ -67,7 +81,6 @@ jobs:
             kubectl -n argocd rollout status deploy/argocd-application-controller --timeout=10m
           fi
 
-          # Final readiness check on server pod(s)
           kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
             --for=condition=Ready --timeout=10m
 
@@ -80,40 +93,42 @@ jobs:
           POD=$(kubectl -n argocd get pod -l app.kubernetes.io/name=argocd-server -o jsonpath='{.items[0].metadata.name}' || true)
           kubectl -n argocd logs "$POD" --tail=200 || true
 
-      # --- Apply AppProject (kafka) ---
+      # --- AppProject (kafka) ---
       - name: Apply AppProject (kafka)
         run: kubectl -n argocd apply -f kafka-gitops/app-project.yaml
 
-      # --- Apply RBAC and roll only if changed (robust, idempotent) ---
+      # --- Validate settings before any forced rollout ---
+      - name: Validate Argo CD settings
+        run: |
+          # Use the repo-server container; the argocd binary is available there.
+          kubectl -n argocd exec deploy/argocd-repo-server -- argocd admin settings validate
+
+      # --- Apply RBAC and roll only if changed (idempotent) ---
       - name: Apply Argo CD accounts & RBAC (roll server if changed)
-        shell: bash
         run: |
           set -euo pipefail
 
-          # Ensure CM/RBAC exist
+          # Apply your RBAC/accounts manifests
           kubectl -n argocd apply -f kafka-gitops/01-operators/argocd-accounts-and-rbac.yaml
 
-          # Validate settings BEFORE forcing a rollout
-          if ! kubectl -n argocd exec deploy/argocd-repo-server -- argocd admin settings validate; then
-            echo "::error:: Argo CD settings invalid (argocd-cm / rbac-cm). Fix and retry."
-            exit 1
-          fi
-
-          # Hash CM content to roll only on change
+          # Compute a hash of the relevant ConfigMaps
           HASH="$(
             { kubectl -n argocd get cm argocd-rbac-cm -o json 2>/dev/null || true;
               kubectl -n argocd get cm argocd-cm     -o json 2>/dev/null || true; } \
             | sha1sum | awk '{print $1}'
           )"
 
+          # Patch the Deployment template with the hash; triggers rollout only when content changes
           kubectl -n argocd patch deploy argocd-server \
             --type merge \
             -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"rbac-hash\":\"$HASH\"}}}}}"
 
+          # Wait for the rollout and readiness
           kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
-          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server --for=condition=Ready --timeout=10m
+          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
+            --for=condition=Ready --timeout=10m
 
-      # --- Generate API token for image-updater and create Secret ---
+      # --- Mint API token & create Secret for Image Updater ---
       - name: Mint token and create Secret for Image Updater
         run: |
           set -euo pipefail
@@ -122,15 +137,14 @@ jobs:
 
           ADMIN_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
 
-          kubectl -n argocd port-forward svc/argocd-server 8080:443 >/tmp/pf.log 2>&1 &
+          # Use HTTP port to avoid TLS hassle in CI
+          kubectl -n argocd port-forward svc/argocd-server 8080:80 >/tmp/pf.log 2>&1 &
           PF_PID=$!
-          # give the port-forward a moment to bind
+          trap 'kill $PF_PID || true' EXIT
           sleep 6
 
-          argocd login localhost:8080 --grpc-web --plaintext --username admin --password "$ADMIN_PWD" --skip-test-tls
+          argocd login localhost:8080 --grpc-web --username admin --password "$ADMIN_PWD" --insecure
           TOKEN=$(argocd account generate-token --account image-updater)
-
-          kill $PF_PID || true
 
           kubectl -n argocd create secret generic argocd-image-updater-secret \
             --from-literal=argocd.token="$TOKEN" \
