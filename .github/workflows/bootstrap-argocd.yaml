@@ -52,7 +52,6 @@ jobs:
       - name: Wait for Argo CD core components
         run: |
           set -euo pipefail
-          echo "⏳ Waiting for Argo CD to become ready..."
 
           kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
           kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=10m || true
@@ -65,13 +64,3 @@ jobs:
 
           kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
             --for=condition=Ready --timeout=10m
-
-      - name: Show installation summary
-        run: |
-          echo "✅ Argo CD installation complete!"
-          echo "--- Namespace info ---"
-          kubectl get ns argocd -o jsonpath='{.metadata.creationTimestamp}'; echo
-          echo "--- Pods ---"
-          kubectl -n argocd get pods -o wide
-          echo "--- Services ---"
-          kubectl -n argocd get svc
