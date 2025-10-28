@@ -1,10 +1,11 @@
 name: Gitops Validate and Render
 on:
+  workflow_dispatch: {}
   push:
+    branches: [ feature/kafka-dev ]
     paths:
       - "kafka-gitops/**"
       - ".github/workflows/gitops-validate.yml"
-  workflow_dispatch: {}
 
 env:
   GITOPS_REPO_URL: ${{ vars.GITOPS_REPO_URL }}
@@ -24,7 +25,7 @@ env:
 
 jobs:
   render:
-    environment: ${{ (github.ref == 'refs/heads/main' && 'production') || (github.ref == 'refs/heads/staging' && 'staging') || 'dev' }}
+    environment: dev
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
