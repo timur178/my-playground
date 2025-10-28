@@ -1,5 +1,6 @@
 name: kafka-infra
 on:
+  workflow_dispatch: {}
   push:
     branches: ["feature/**", "staging", "main"]
     paths:
@@ -10,7 +11,6 @@ on:
     paths:
       - "kafka-infra/**"
       - ".github/workflows/kafka-infra.yml"
-  workflow_dispatch:
 
 jobs:
   terraform-build:
