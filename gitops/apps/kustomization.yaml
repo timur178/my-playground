@@ -10,4 +10,4 @@ resources:
 - apps/40-apps/producer
 - apps/40-apps/consumer
 - apps/40-apps/dashboard
-- argocd/project.yaml
+- ../argocd/project.yaml
