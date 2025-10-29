@@ -1,0 +1,61 @@
+name: Install ArgoCD
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ feature/battlefield ]
+    paths:
+      - ".github/workflows/install-argocd.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: argocd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION:        ${{ vars.AWS_REGION }}
+  AWS_OIDC_ROLE_ARN: ${{ vars.AWS_OIDC_ROLE_ARN }}
+  EKS_CLUSTER_NAME:  ${{ vars.EKS_CLUSTER_NAME }}
+
+jobs:
+  install-argocd:
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set kubeconfig for EKS
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
+
+      - name: Ensure argocd namespace
+        run: kubectl get ns argocd >/dev/null 2>&1 || kubectl create ns argocd
+
+      - name: Install Argo CD
+        run: kubectl -n argocd apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+      - name: Wait for Argo CD core components
+        run: |
+          set -euo pipefail
+          kubectl -n argocd rollout status deploy/argocd-server --timeout=10m
+          kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=10m || true
+          if kubectl -n argocd get statefulset argocd-application-controller >/dev/null 2>&1; then
+            kubectl -n argocd rollout status statefulset/argocd-application-controller --timeout=10m
+          else
+            kubectl -n argocd rollout status deploy/argocd-application-controller --timeout=10m
+          fi
+          kubectl -n argocd wait pod -l app.kubernetes.io/name=argocd-server \
+            --for=condition=Ready --timeout=10m

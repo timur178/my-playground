@@ -1,0 +1,73 @@
+name: Build Terraform Infra
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: ["feature/**", "staging", "main"]
+    paths:
+      - "infra/**"
+      - ".github/workflows/build-infra.yml"
+
+env:
+  AWS_REGION:        ${{ vars.AWS_REGION }}
+  AWS_OIDC_ROLE_ARN: ${{ vars.AWS_OIDC_ROLE_ARN }}
+  TF_BACKEND_BUCKET: ${{ vars.TF_BACKEND_S3_BUCKET }}
+  ENVIRONMENT_STAGE: ${{ vars.ENVIRONMENT_STAGE }}
+  TEAM:              ${{ vars.TEAM }}
+  PROJECT:           ${{ vars.PROJECT }}
+
+jobs:
+  terraform-build:
+    environment: ${{ (github.ref == 'refs/heads/main' && 'production') || (github.ref == 'refs/heads/staging' && 'staging') || 'dev' }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: infra
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN }}
+
+      - name: Terraform Init
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=${{ env.TF_BACKEND_BUCKET }}" \
+            -backend-config="key=${{ env.ENVIRONMENT_STAGE }}/kafka-infra/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="use_lockfile=true"
+          terraform fmt -check -recursive
+
+      - name: Terraform Plan
+        run: |
+          terraform plan -out tfplan \
+            -var 'region=${{ env.AWS_REGION }}' \
+            -var 'environment=${{ env.ENVIRONMENT_STAGE }}' \
+            -var 'team=${{ env.TEAM }}' \
+            -var 'project=${{ env.PROJECT }}' \
+            -var 'eks_cluster_name=${{ vars.EKS_CLUSTER_NAME }}' \
+            -var 'vpc_id=${{ vars.VPC_ID }}' \
+            -var 'private_subnet_ids=${{ vars.PRIVATE_SUBNET_IDS_JSON }}' \
+            -var 'eks_nodes_security_group_id=${{ vars.EKS_NODES_SG_ID }}' \
+            -var "db_name=${{ vars.DB_NAME }}" \
+            -var 'db_username=${{ vars.DB_USERNAME }}' \
+            -var 'eks_oidc_provider_arn=${{ vars.EKS_OIDC_PROVIDER_ARN }}' \
+            -var 'eks_oidc_provider_url=${{ vars.EKS_OIDC_PROVIDER_URL }}' \
+            -var 'ecr_repo_names=${{ vars.ECR_REPO_NAMES_JSON }}' \
+            -var 'ecr_repo_prefix=${{ env.TEAM }}/${{ env.ENVIRONMENT_STAGE }}' \
+            -var 'team_domain=${{ vars.TEAM_DOMAIN }}' \
+            -var 'github_actions_role_arn=${{ env.AWS_OIDC_ROLE_ARN }}'
+
+      - name: Terraform Apply
+        if: github.ref != 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        run: terraform apply -auto-approve tfplan
+
