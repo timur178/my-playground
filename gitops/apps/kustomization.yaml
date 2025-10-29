@@ -3,14 +3,20 @@ kind: Kustomization
 resources:
   - 00-namespaces/kafka-ns.yaml
   - 00-namespaces/external-secrets-ns.yaml
-  - 05-external-secrets/                 # contains externalsecret + clustersecretstore
-  - 05-external-secrets/application.yaml # installs ESO & CRDs (wave 0)
-  - 10-strimzi-operator/application.yaml # installs Strimzi & CRDs (wave 0)
-  - 20-kafka-cluster/kafka.yaml          # wave 1
-  - 20-kafka-cluster/nodepool.yaml       # wave 2
+
+  # Operators (CRDs) – wave 0
+  - 05-external-secrets/application.yaml
+  - 10-strimzi-operator/application.yaml
+
+  # CRs after operators – wave 1
+  - 05-external-secrets/resources-application.yaml
+  - 20-kafka-cluster/application.yaml
+
+  # Image updater + apps
   - 30-image-updater/application.yaml
   - 40-apps/app-producer.yaml
   - 40-apps/app-consumer.yaml
   - 40-apps/app-dashboard.yaml
+
   - argocd/project.yaml
 

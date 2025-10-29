@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kafka-cluster
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: kafka
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kafka
+  source:
+    repoURL: https://github.com/timur178/my-playground.git
+    targetRevision: feature/battlefield
+    path: gitops/apps/20-kafka-cluster
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions:
+      - CreateNamespace=true
+
