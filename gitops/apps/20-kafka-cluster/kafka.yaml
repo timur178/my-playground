@@ -4,27 +4,22 @@ metadata:
   name: iot-kafka
   namespace: kafka
   annotations:
-    # Required for KRaft + node pools
     strimzi.io/kraft: enabled
     strimzi.io/node-pools: enabled
     argocd.argoproj.io/sync-wave: "1"
 spec:
   kafka:
     version: 3.7.0
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
     config:
       num.partitions: 3
       default.replication.factor: 3
       min.insync.replicas: 2
       auto.create.topics.enable: true
-    listeners:
-    - name: plain
-      port: 9092
-      type: internal
-      tls: false
-    - name: tls
-      port: 9093
-      type: internal
-      tls: true
   entityOperator:
     topicOperator: {}
     userOperator: {}

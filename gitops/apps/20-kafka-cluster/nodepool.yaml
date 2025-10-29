@@ -9,18 +9,19 @@ metadata:
     argocd.argoproj.io/sync-wave: "2"
 spec:
   replicas: 3
-  roles: ["controller", "broker"]
+  roles: ["controller","broker"]
   storage:
     type: persistent-claim
-    class: gp3
+    class: gp3          # match your StorageClass name
     size: 100Gi
     deleteClaim: false
   template:
     pod:
-      tolerations:
-      - key: "dedicated"
-        value: "kafka"
-        effect: "NoSchedule"
+      # match your Kafka nodegroup
       nodeSelector:
         workload: kafka
+      tolerations:
+        - key: "dedicated"
+          value: "kafka"
+          effect: "NoSchedule"
 
