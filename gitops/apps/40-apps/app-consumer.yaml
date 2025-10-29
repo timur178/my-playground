@@ -1,0 +1,29 @@
+# gitops/apps/40-apps/app-consumer.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-consumer
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd-image-updater.argoproj.io/image-list: consumer=${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${TEAM}/${ENVIRONMENT_STAGE}/kafka-consumer:~1
+    argocd-image-updater.argoproj.io/update-strategy: newest-build
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+spec:
+  project: kafka
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kafka
+  source:
+    repoURL: https://github.com/timur178/my-playground.git
+    targetRevision: HEAD
+    path: gitops/apps/40-apps/consumer
+    helm:
+      parameters:
+        - name: service.port
+          value: "8080"
+        - name: image.tag
+          value: "1.0.0"
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+

@@ -1,0 +1,11 @@
+image:
+  repository: ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${TEAM}/${ENVIRONMENT_STAGE}/kafka-consumer
+  tag: "1.0.0"
+replicaCount: 1
+service:
+  type: ClusterIP
+  port: 8080
+env:
+  KAFKA_BOOTSTRAP_SERVERS: iot-kafka-kafka-bootstrap.kafka.svc:9092
+  RDS_SECRET_NAME: pg-credentials
+

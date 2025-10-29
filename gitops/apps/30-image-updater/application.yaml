@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-image-updater
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: kafka
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  source:
+    repoURL: https://argoproj.github.io/argo-helm
+    chart: argocd-image-updater
+    targetRevision: 0.9.1
+    helm:
+      values: |
+        config:
+          registries:
+          - name: ecr
+            apiURL: https://api.ecr.${AWS_REGION}.amazonaws.com
+            prefix: ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+            default: true
+        extraEnv:
+        - name: AWS_REGION
+          value: ${AWS_REGION}
+        serviceAccount:
+          create: true
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::${ACCOUNT_ID}:role/${EKS_CLUSTER_NAME}-argocd-image-updater
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+

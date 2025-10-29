@@ -1,0 +1,13 @@
+replicaCount: 1
+image:
+  repository: ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${TEAM}/${ENVIRONMENT_STAGE}/kafka-dashboard
+  tag: "0.1.0"
+service:
+  type: ClusterIP
+  port: 3000
+ingress:
+  enabled: true
+  className: nginx
+  host: kafka-dashboard-${TEAM}-dev.${TEAM_DOMAIN}
+resources: {}
+

@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-consumer
+  labels: { app: kafka-consumer }
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector: { matchLabels: { app: kafka-consumer } }
+  template:
+    metadata:
+      labels: { app: kafka-consumer }
+    spec:
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports: [{ containerPort: {{ .Values.service.port }} }]
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: {{ .Values.env.KAFKA_BOOTSTRAP_SERVERS | quote }}
+            - name: PGHOST
+              valueFrom: { secretKeyRef: { name: {{ .Values.env.RDS_SECRET_NAME | quote }}, key: host } }
+            - name: PGPORT
+              valueFrom: { secretKeyRef: { name: {{ .Values.env.RDS_SECRET_NAME | quote }}, key: port } }
+            - name: PGDATABASE
+              valueFrom: { secretKeyRef: { name: {{ .Values.env.RDS_SECRET_NAME | quote }}, key: dbname } }
+            - name: PGUSER
+              valueFrom: { secretKeyRef: { name: {{ .Values.env.RDS_SECRET_NAME | quote }}, key: username } }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.env.RDS_SECRET_NAME | quote }}, key: password } }
+

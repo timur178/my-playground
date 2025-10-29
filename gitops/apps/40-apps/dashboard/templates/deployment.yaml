@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-dashboard
+  labels: { app: kafka-dashboard }
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector: { matchLabels: { app: kafka-dashboard } }
+  template:
+    metadata:
+      labels: { app: kafka-dashboard }
+    spec:
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports: [{ containerPort: {{ .Values.service.port }} }]
+

@@ -1,0 +1,16 @@
+variable "region" { type = string }
+variable "team" { type = string }
+variable "environment" { type = string }
+variable "project" { type = string }
+variable "eks_cluster_name" { type = string }
+variable "private_subnet_ids" { type = list(string) }
+variable "vpc_id" { type = string }
+variable "eks_nodes_security_group_id" { type = string }
+variable "db_name" { type = string }
+variable "db_username" { type = string }
+variable "eks_oidc_provider_url" { type = string }
+variable "eks_oidc_provider_arn" { type = string }
+variable "ecr_repo_names" { type = list(string) }
+variable "ecr_repo_prefix" { type = string }
+variable "team_domain" { type = string }
+variable "github_actions_role_arn" { type = string }
