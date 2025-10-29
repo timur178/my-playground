@@ -1,0 +1,78 @@
+name: Kafka Smoke Test
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ feature/battlefield ]
+    paths:
+      - "gitops/apps/10-strimzi-operator/**"
+      - "gitops/apps/20-kafka-cluster/**"
+      - ".github/workflows/kafka-smoke.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION:        ${{ vars.AWS_REGION }}
+  AWS_OIDC_ROLE_ARN: ${{ vars.AWS_OIDC_ROLE_ARN }}
+  EKS_CLUSTER_NAME:  ${{ vars.EKS_CLUSTER_NAME }}
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set kubeconfig for EKS
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
+
+      - name: Wait for Strimzi CRDs
+        run: |
+          echo "Waiting for Strimzi CRDs..."
+          for i in {1..30}; do
+            if kubectl get crd | grep -q 'kafka\.strimzi\.io'; then
+              kubectl get crd | grep strimzi || true
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Strimzi CRDs not found" >&2
+          exit 1
+
+      - name: Wait for Strimzi operator
+        run: |
+          for i in {1..30}; do
+            if kubectl -n kafka get deploy | grep -q strimzi; then
+              kubectl -n kafka rollout status deploy/strimzi-cluster-operator --timeout=10m || true
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Strimzi operator deployment not found" >&2
+          exit 1
+
+      - name: Wait for Kafka cluster (3 pods)
+        run: |
+          set -e
+          # Give Argo some time to create the Kafka CRs
+          for i in {1..60}; do
+            READY=$(kubectl -n kafka get pods -l strimzi.io/name=iot-kafka-kafka --no-headers 2>/dev/null | awk '/Running/{c++} END{print c+0}')
+            if [ "$READY" -ge 3 ]; then
+              kubectl -n kafka get pods -l strimzi.io/name=iot-kafka-kafka -o wide
+              kubectl -n kafka get pvc | grep iot-kafka || true
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Kafka pods not ready" >&2
+          kubectl -n kafka get pods -o wide || true
+          exit 1
+
