@@ -1,9 +1,6 @@
 watchAnyNamespace: false
 watchNamespaces:
   - kafka
-
-# optional—but handy to keep noise down
 logLevel: INFO
-
-# leave image + tag to chart defaults
 resources: {}
+
