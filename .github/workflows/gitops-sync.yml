@@ -34,10 +34,10 @@ jobs:
       - name: Set kubeconfig for EKS
         run: aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
 
-      - name: Create/Update App-of-Apps
+      - name: Apply project + app-of-apps and refresh
         run: |
+          kubectl -n argocd apply -f gitops/argocd/project.yaml || true
           kubectl -n argocd apply -f gitops/argocd/app-of-apps.yaml
-          # Ask Argo CD to rescan the tree (no CLI needed)
           kubectl -n argocd patch application kafka-platform \
             --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}' || true
 

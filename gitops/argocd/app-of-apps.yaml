@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/timur178/my-playground.git
     targetRevision: HEAD
-    path: gitops
+    path: gitops/apps
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
