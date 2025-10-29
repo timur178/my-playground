@@ -12,14 +12,14 @@ spec:
   roles: ["controller","broker"]
   storage:
     type: persistent-claim
-    class: gp3          # match your StorageClass name
+    class: gp3      # matches your default StorageClass
     size: 100Gi
     deleteClaim: false
   template:
     pod:
-      # match your Kafka nodegroup
+      # your nodes have BOTH a label and a taint named 'dedicated=kafka'
       nodeSelector:
-        workload: kafka
+        dedicated: "kafka"
       tolerations:
         - key: "dedicated"
           value: "kafka"

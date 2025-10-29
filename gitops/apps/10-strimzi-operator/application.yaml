@@ -15,8 +15,7 @@ spec:
     chart: strimzi-kafka-operator
     targetRevision: 0.43.0
     helm:
-      valueFiles:
-        - values.yaml
+      valueFiles: [values.yaml]
   syncPolicy:
     automated: { prune: true, selfHeal: true }
 

@@ -1,6 +1,5 @@
 watchAnyNamespace: false
-watchNamespaces:
-  - kafka
+watchNamespaces: [kafka]
 logLevel: INFO
 resources: {}
 
