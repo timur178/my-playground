@@ -13,7 +13,7 @@ spec:
   source:
     repoURL: https://github.com/timur178/my-playground.git
     targetRevision: feature/battlefield
-    path: gitops/apps/05-external-secrets/resources
+    path: gitops/apps/05-external-secrets
   syncPolicy:
     automated: { prune: true, selfHeal: true }
     syncOptions:

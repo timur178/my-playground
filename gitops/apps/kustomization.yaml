@@ -4,7 +4,7 @@ resources:
   - 00-namespaces/kafka-ns.yaml
   - 00-namespaces/external-secrets-ns.yaml
 
-  # Operators (CRDs) – wave 0
+  # Operators (install CRDs) – wave 0
   - 05-external-secrets/application.yaml
   - 10-strimzi-operator/application.yaml
 
@@ -12,7 +12,7 @@ resources:
   - 05-external-secrets/resources-application.yaml
   - 20-kafka-cluster/application.yaml
 
-  # Image updater + apps
+  # Other apps
   - 30-image-updater/application.yaml
   - 40-apps/app-producer.yaml
   - 40-apps/app-consumer.yaml
