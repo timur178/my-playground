@@ -1,13 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- apps/00-namespaces/kafka-ns.yaml
-- apps/05-external-secrets/kustomization.yaml
-- apps/10-strimzi-operator/application.yaml
-- apps/20-kafka-cluster/kafka.yaml
-- apps/20-kafka-cluster/nodepool.yaml
-- apps/30-image-updater/application.yaml
-- apps/40-apps/producer
-- apps/40-apps/consumer
-- apps/40-apps/dashboard
-- ../argocd/project.yaml
+  - apps/00-namespaces/kafka-ns.yaml
+  - apps/05-external-secrets/kustomization.yaml
+  - apps/10-strimzi-operator/application.yaml
+  - apps/20-kafka-cluster/kafka.yaml
+  - apps/20-kafka-cluster/nodepool.yaml
+  - apps/30-image-updater/application.yaml
+  - apps/40-apps/producer
+  - apps/40-apps/consumer
+  - apps/40-apps/dashboard
+  - argocd/project.yaml
+
